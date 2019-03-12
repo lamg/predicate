@@ -21,12 +21,14 @@
 package predicate
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
 type Predicate struct {
-	Operator string
-	A, B     *Predicate
+	Operator string     `json:"operator"`
+	A        *Predicate `json:"a"`
+	B        *Predicate `json:"b"`
 	Val      func() (bool, bool)
 	String   func() string
 }
@@ -123,11 +125,11 @@ func reduceUnit(p, r *Predicate, unit bool) {
 }
 
 func reduceEquivales(p, r *Predicate) {
-	// TODO
+	notImplemented()
 }
 
 func reduceImplies(p, r *Predicate) {
-	// TODO
+	notImplemented()
 }
 
 func True() (r *Predicate) {
@@ -158,6 +160,52 @@ func String(p *Predicate) (r string) {
 			String(p.A), p.Operator, String(p.B))
 	}
 	return
+}
+
+type predJSON struct {
+	Operator string     `json:"operator"`
+	A        *Predicate `json:"a"`
+	B        *Predicate `json:"b"`
+	Str      string     `json:"str"`
+}
+
+func (p *Predicate) MarshalJSON() (bs []byte, e error) {
+	pj := &predJSON{
+		Operator: p.Operator,
+		A:        p.A,
+		B:        p.B,
+	}
+	if p.Operator == Term {
+		pj.Str = p.String()
+	}
+	bs, e = json.Marshal(pj)
+	return
+}
+
+const (
+	OperandAK = "a"
+	OperandBK = "b"
+	StrK      = "str"
+)
+
+func (p *Predicate) To() (m map[string]interface{}) {
+	notImplemented()
+	return
+}
+
+func (p *Predicate) From(m map[string]interface{},
+	f func(string) (func() (bool, bool), func() string)) (e error) {
+	notImplemented()
+	return
+}
+
+func ReplacePostorderAt(p, r *Predicate, n int) (ok bool) {
+	notImplemented()
+	return
+}
+
+func notImplemented() {
+	panic("Not implemented")
 }
 
 type kFunc struct {

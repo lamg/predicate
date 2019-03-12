@@ -21,6 +21,7 @@
 package predicate
 
 import (
+	"encoding/json"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -124,4 +125,28 @@ func TestString(t *testing.T) {
 		require.Equal(t, ts[i].s, rs, "At %d", i)
 	}
 	forall(inf, len(ts))
+}
+
+func TestMarshal(t *testing.T) {
+	ps := []*predStr{
+		{
+			p: &Predicate{
+				Operator: AndOp,
+				A:        True(),
+				B:        False(),
+			},
+			s: `{"operator":"∧",` +
+				`"a":{"operator":"term",` +
+				`"a":null,"b":null,"str":"true"},` +
+				`"b":{"operator":"term",` +
+				`"a":null,"b":null,"str":"false"},` +
+				`"str":""}`,
+		},
+	}
+	inf := func(i int) {
+		bs, e := json.Marshal(ps[i].p)
+		require.NoError(t, e)
+		require.Equal(t, ps[i].s, string(bs))
+	}
+	forall(inf, len(ps))
 }
