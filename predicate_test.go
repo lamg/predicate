@@ -67,21 +67,17 @@ func TestReduce(t *testing.T) {
 				A: &Predicate{
 					Operator: AndOp,
 					A:        True(),
-					B:        &Predicate{Operator: Term, Val: NoVal},
+					B:        NewVar("A"),
 				},
 			},
-			res: &Predicate{Operator: Term, Val: NoVal},
+			res: NewVar("A"),
 		},
 	}
 	inf := func(i int) {
+		require.True(t, ps[i].tov.Valid())
+		require.True(t, ps[i].res.Valid())
 		r := Reduce(ps[i].tov)
-		require.Equal(t, ps[i].res.Operator, r.Operator, "At %d", i)
-		if ps[i].tov.Operator == Term {
-			v, ok := ps[i].res.Val()
-			av, aok := r.Val()
-			require.Equal(t, ok, aok, "At %d", i)
-			require.Equal(t, v, av, "At %d", i)
-		}
+		require.Equal(t, ps[i].res.String, r.String)
 	}
 	forall(inf, len(ps))
 }
@@ -95,21 +91,15 @@ func TestString(t *testing.T) {
 	ts := []*predStr{
 		{p: True(), s: "true"},
 		{
-			p: &Predicate{
-				Operator: Term,
-				String:   func() string { return "X" },
-			},
+			p: NewVar("X"),
 			s: "X",
 		},
 		{
 			p: &Predicate{
 				Operator: NotOp,
-				A: &Predicate{
-					Operator: Term,
-					String:   func() string { return "Y" },
-				},
+				A:        NewVar("Y"),
 			},
-			s: "¬(Y)",
+			s: "¬Y",
 		},
 		{
 			p: &Predicate{
@@ -117,7 +107,41 @@ func TestString(t *testing.T) {
 				A:        True(),
 				B:        False(),
 			},
-			s: "(true) ∧ (false)",
+			s: "true ∧ false",
+		},
+		{
+			p: &Predicate{
+				Operator: OrOp,
+				A:        NewVar("A"),
+				B: &Predicate{
+					Operator: OrOp,
+					A:        NewVar("B"),
+					B: &Predicate{
+						Operator: OrOp,
+						A:        NewVar("C"),
+						B: &Predicate{
+							Operator: AndOp,
+							A:        NewVar("R"),
+							B: &Predicate{
+								Operator: NotOp,
+								A:        NewVar("T"),
+							},
+						},
+					},
+				},
+			},
+			s: "A ∨ B ∨ C ∨ (R ∧ ¬T)",
+		},
+		{
+			p: &Predicate{
+				Operator: NotOp,
+				A: &Predicate{
+					Operator: OrOp,
+					A:        NewVar("A"),
+					B:        NewVar("B"),
+				},
+			},
+			s: "¬(A ∨ B)",
 		},
 	}
 	inf := func(i int) {
@@ -137,10 +161,10 @@ func TestMarshal(t *testing.T) {
 			},
 			s: `{"operator":"∧",` +
 				`"a":{"operator":"term",` +
-				`"a":null,"b":null,"str":"true"},` +
+				`"a":null,"b":null,"string":"true"},` +
 				`"b":{"operator":"term",` +
-				`"a":null,"b":null,"str":"false"},` +
-				`"str":""}`,
+				`"a":null,"b":null,"string":"false"},` +
+				`"string":""}`,
 		},
 	}
 	inf := func(i int) {

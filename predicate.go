@@ -21,25 +21,25 @@
 package predicate
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
 type Predicate struct {
-	Operator string     `json:"operator"`
-	A        *Predicate `json:"a"`
-	B        *Predicate `json:"b"`
-	Val      func() (bool, bool)
-	String   func() string
+	Operator string              `json:"operator"`
+	A        *Predicate          `json:"a"`
+	B        *Predicate          `json:"b"`
+	Val      func() (bool, bool) `json:"-"`
+	String   string              `json:"string"`
 }
 
 const (
-	NotOp       = "¬"
-	AndOp       = "∧"
-	OrOp        = "∨"
-	EquivalesOp = "≡"
-	ImpliesOp   = "⇒"
-	Term        = "term"
+	NotOp          = "¬"
+	AndOp          = "∧"
+	OrOp           = "∨"
+	EquivalesOp    = "≡"
+	NotEquivalesOp = "≢"
+	ImpliesOp      = "⇒"
+	Term           = "term"
 )
 
 func Reduce(p *Predicate) (r *Predicate) {
@@ -51,14 +51,16 @@ func Reduce(p *Predicate) (r *Predicate) {
 		reduceOr,
 		reduceImplies,
 		reduceEquivales,
+		reduceNotEquivales,
 		id,
 	}
 	ops := []string{
 		NotOp,
 		AndOp,
 		OrOp,
-		EquivalesOp,
 		ImpliesOp,
+		EquivalesOp,
+		NotEquivalesOp,
 		Term,
 	}
 	fs := make([]kFunc, len(fps))
@@ -82,6 +84,12 @@ func reduceNot(p, r *Predicate) {
 			v, ok = nr.Val()
 			v = !v
 			return
+		}
+		v, ok := r.Val()
+		if ok {
+			r.String = fmt.Sprint(v)
+		} else {
+			r.String = nr.String
 		}
 		r.Operator = Term
 	} else {
@@ -116,6 +124,7 @@ func reduceUnit(p, r *Predicate, unit bool) {
 			v, ok = !unit, true
 			return
 		}
+		r.String = fmt.Sprint(!unit)
 	} else if unitF {
 		*r = *ps[len(ps)-1-un]
 	} else {
@@ -132,53 +141,94 @@ func reduceImplies(p, r *Predicate) {
 	notImplemented()
 }
 
+func reduceNotEquivales(p, r *Predicate) {
+	notImplemented()
+}
+
 func True() (r *Predicate) {
-	r = &Predicate{
-		Operator: Term,
-		Val:      func() (bool, bool) { return true, true },
-		String:   func() string { return "true" },
-	}
+	r = NewTerm("", true)
 	return
 }
 
 func False() (r *Predicate) {
-	r = &Predicate{
+	r = NewTerm("", false)
+	return
+}
+
+func StrF(s string) (f func() string) {
+	f = func() string {
+		return s
+	}
+	return
+}
+
+func NewVar(s string) (p *Predicate) {
+	p = NewTerm(s, false)
+	return
+}
+
+func NewTerm(s string, v bool) (p *Predicate) {
+	p = &Predicate{
 		Operator: Term,
-		Val:      func() (bool, bool) { return false, true },
-		String:   func() string { return "false" },
+		Val: func() (u, ok bool) {
+			u, ok = v, s == ""
+			return
+		},
+	}
+	if s != "" {
+		p.String = s
+	} else {
+		p.String = fmt.Sprint(v)
 	}
 	return
 }
 
 func String(p *Predicate) (r string) {
 	if p.Operator == Term {
-		r = p.String()
+		r = p.String
 	} else if p.Operator == NotOp {
-		r = fmt.Sprintf("%s(%s)", NotOp, String(p.A))
+		var sfm string
+		if p.A.Operator == Term {
+			sfm = "%s"
+		} else {
+			sfm = "(%s)"
+		}
+		r = fmt.Sprintf("%s"+sfm, NotOp, String(p.A))
 	} else {
-		r = fmt.Sprintf("(%s) %s (%s)",
+		r = fmt.Sprintf(
+			format(p.Operator, p.A.Operator)+" %s "+
+				format(p.Operator, p.B.Operator),
 			String(p.A), p.Operator, String(p.B))
 	}
 	return
 }
 
-type predJSON struct {
-	Operator string     `json:"operator"`
-	A        *Predicate `json:"a"`
-	B        *Predicate `json:"b"`
-	Str      string     `json:"str"`
-}
-
-func (p *Predicate) MarshalJSON() (bs []byte, e error) {
-	pj := &predJSON{
-		Operator: p.Operator,
-		A:        p.A,
-		B:        p.B,
+func format(oa, ob string) (r string) {
+	assocOps := []string{
+		AndOp, AndOp,
+		OrOp, OrOp,
+		EquivalesOp, EquivalesOp,
+		EquivalesOp, NotEquivalesOp,
+		AndOp, Term,
+		OrOp, Term,
+		EquivalesOp, Term,
+		NotEquivalesOp, Term,
+		AndOp, NotOp,
+		OrOp, NotOp,
+		EquivalesOp, NotOp,
+		NotEquivalesOp, NotOp,
 	}
-	if p.Operator == Term {
-		pj.Str = p.String()
+	ib := func(i int) (b bool) {
+		oi, oi1 := assocOps[2*i], assocOps[2*i+1]
+		b = (oi == oa && oi1 == ob) || (oi == ob && oi1 == oa)
+		return
 	}
-	bs, e = json.Marshal(pj)
+	ok, _ := bLnSrch(ib, len(assocOps)/2)
+	if ok {
+		r = "%s"
+	} else {
+		r = "(%s)"
+	}
 	return
 }
 
@@ -199,8 +249,26 @@ func (p *Predicate) From(m map[string]interface{},
 	return
 }
 
-func ReplacePostorderAt(p, r *Predicate, n int) (ok bool) {
+func (p *Predicate) ReplacePostorderAt(r *Predicate,
+	n int) (ok bool) {
 	notImplemented()
+	return
+}
+
+func (p *Predicate) Valid() (ok bool) {
+	if p.Operator == NotOp {
+		ok = p.A != nil && p.B == nil
+		ok = ok && p.A.Valid()
+	} else if p.Operator == Term {
+		ok = p.String != ""
+	} else {
+		ops := []string{AndOp, OrOp, ImpliesOp, EquivalesOp,
+			NotEquivalesOp}
+		ib := func(i int) bool { return p.Operator == ops[i] }
+		ok, _ = bLnSrch(ib, len(ops))
+		ok = ok && p.A != nil && p.B != nil
+		ok = ok && p.A.Valid() && p.B.Valid()
+	}
 	return
 }
 
