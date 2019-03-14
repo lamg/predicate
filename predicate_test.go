@@ -31,7 +31,6 @@ type toEvalResult struct {
 }
 
 func TestReduce(t *testing.T) {
-
 	ps := []*toEvalResult{
 		{tov: True(), res: True()},
 		{tov: &Predicate{Operator: NotOp, A: False()}, res: True()},
@@ -67,19 +66,54 @@ func TestReduce(t *testing.T) {
 				A: &Predicate{
 					Operator: AndOp,
 					A:        True(),
-					B:        NewVar("A"),
+					B:        &Predicate{Operator: NotOp, A: NewTerm("A")},
 				},
 			},
-			res: NewVar("A"),
+			res: &Predicate{
+				Operator: NotOp,
+				A:        &Predicate{Operator: NotOp, A: NewTerm("A")},
+			},
 		},
+		{
+			tov: &Predicate{
+				Operator: AndOp,
+				A:        NewTerm("A"),
+				B:        NewTerm("A"),
+			},
+			res: &Predicate{
+				Operator: AndOp,
+				A:        NewTerm("A"),
+				B:        NewTerm("A"),
+			},
+		},
+	}
+	itp := func(n string) (v, ok bool) {
+		v, ok = n == "true", n != "A"
+		return
 	}
 	inf := func(i int) {
 		require.True(t, ps[i].tov.Valid())
 		require.True(t, ps[i].res.Valid())
-		r := Reduce(ps[i].tov)
-		require.Equal(t, ps[i].res.String, r.String)
+		r := Reduce(ps[i].tov, itp)
+		stov, sr := String(ps[i].tov), String(r)
+		require.Equal(t, String(ps[i].res), sr)
+		t.Logf("%s → %s", stov, sr)
 	}
 	forall(inf, len(ps))
+}
+
+func TestNot(t *testing.T) {
+	itp := func(n string) (v, ok bool) {
+		v, ok = n == "true", n != "A"
+		return
+	}
+	p := &Predicate{
+		Operator: NotOp,
+		A:        &Predicate{Operator: NotOp, A: NewTerm("A")},
+	}
+	nr := new(Predicate)
+	reduceNot(p, nr, itp)
+	require.Equal(t, String(p), String(nr))
 }
 
 type predStr struct {
@@ -91,13 +125,13 @@ func TestString(t *testing.T) {
 	ts := []*predStr{
 		{p: True(), s: "true"},
 		{
-			p: NewVar("X"),
+			p: NewTerm("X"),
 			s: "X",
 		},
 		{
 			p: &Predicate{
 				Operator: NotOp,
-				A:        NewVar("Y"),
+				A:        NewTerm("Y"),
 			},
 			s: "¬Y",
 		},
@@ -112,19 +146,19 @@ func TestString(t *testing.T) {
 		{
 			p: &Predicate{
 				Operator: OrOp,
-				A:        NewVar("A"),
+				A:        NewTerm("A"),
 				B: &Predicate{
 					Operator: OrOp,
-					A:        NewVar("B"),
+					A:        NewTerm("B"),
 					B: &Predicate{
 						Operator: OrOp,
-						A:        NewVar("C"),
+						A:        NewTerm("C"),
 						B: &Predicate{
 							Operator: AndOp,
-							A:        NewVar("R"),
+							A:        NewTerm("R"),
 							B: &Predicate{
 								Operator: NotOp,
-								A:        NewVar("T"),
+								A:        NewTerm("T"),
 							},
 						},
 					},
@@ -137,8 +171,8 @@ func TestString(t *testing.T) {
 				Operator: NotOp,
 				A: &Predicate{
 					Operator: OrOp,
-					A:        NewVar("A"),
-					B:        NewVar("B"),
+					A:        NewTerm("A"),
+					B:        NewTerm("B"),
 				},
 			},
 			s: "¬(A ∨ B)",

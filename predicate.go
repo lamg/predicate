@@ -25,11 +25,10 @@ import (
 )
 
 type Predicate struct {
-	Operator string              `json:"operator"`
-	A        *Predicate          `json:"a"`
-	B        *Predicate          `json:"b"`
-	Val      func() (bool, bool) `json:"-"`
-	String   string              `json:"string"`
+	Operator string     `json:"operator"`
+	A        *Predicate `json:"a"`
+	B        *Predicate `json:"b"`
+	String   string     `json:"string"`
 }
 
 const (
@@ -42,10 +41,12 @@ const (
 	Term           = "term"
 )
 
-func Reduce(p *Predicate) (r *Predicate) {
+type NameBool func(string) (bool, bool)
+
+func Reduce(p *Predicate, interp NameBool) (r *Predicate) {
 	r = new(Predicate)
-	id := func(p, r *Predicate) { *r = *p }
-	fps := []func(*Predicate, *Predicate){
+	id := func(p, r *Predicate, itp NameBool) { *r = *p }
+	fps := []func(*Predicate, *Predicate, NameBool){
 		reduceNot,
 		reduceAnd,
 		reduceOr,
@@ -65,32 +66,21 @@ func Reduce(p *Predicate) (r *Predicate) {
 	}
 	fs := make([]kFunc, len(fps))
 	inf := func(i int) {
-		fs[i] = kFunc{ops[i], func() { fps[i](p, r) }}
+		fs[i] = kFunc{ops[i], func() { fps[i](p, r, interp) }}
 	}
 	forall(inf, len(fs))
 	execKF(fs, p.Operator)
 	return
 }
 
-func NoVal() (v, ok bool) {
-	v, ok = false, false
-	return
-}
-
-func reduceNot(p, r *Predicate) {
-	nr := Reduce(p.A)
-	if nr.Operator == Term {
-		r.Val = func() (v, ok bool) {
-			v, ok = nr.Val()
-			v = !v
-			return
-		}
-		v, ok := r.Val()
-		if ok {
-			r.String = fmt.Sprint(v)
-		} else {
-			r.String = nr.String
-		}
+func reduceNot(p, r *Predicate, itp NameBool) {
+	nr := Reduce(p.A, itp)
+	v, ok := false, nr.Operator == Term
+	if ok {
+		v, ok = itp(nr.String)
+	}
+	if ok {
+		r.String = fmt.Sprint(!v)
 		r.Operator = Term
 	} else {
 		r.A = nr
@@ -98,19 +88,19 @@ func reduceNot(p, r *Predicate) {
 	}
 }
 
-func reduceAnd(p, r *Predicate) {
-	reduceUnit(p, r, true)
+func reduceAnd(p, r *Predicate, itp NameBool) {
+	reduceUnit(p, r, true, itp)
 }
 
-func reduceOr(p, r *Predicate) {
-	reduceUnit(p, r, false)
+func reduceOr(p, r *Predicate, itp NameBool) {
+	reduceUnit(p, r, false, itp)
 }
 
-func reduceUnit(p, r *Predicate, unit bool) {
-	ps := []*Predicate{Reduce(p.A), Reduce(p.B)}
+func reduceUnit(p, r *Predicate, unit bool, itp NameBool) {
+	ps := []*Predicate{Reduce(p.A, itp), Reduce(p.B, itp)}
 	unitF, un := false, 0
 	ib := func(i int) (b bool) {
-		v, ok := ps[i].Val()
+		v, ok := itp(ps[i].String)
 		b = ps[i].Operator == Term && ok && v != unit
 		if ps[i].Operator == Term && ok && v == unit {
 			unitF, un = true, i
@@ -120,10 +110,6 @@ func reduceUnit(p, r *Predicate, unit bool) {
 	zeroF, _ := bLnSrch(ib, len(ps))
 	if zeroF {
 		r.Operator = Term
-		r.Val = func() (v bool, ok bool) {
-			v, ok = !unit, true
-			return
-		}
 		r.String = fmt.Sprint(!unit)
 	} else if unitF {
 		*r = *ps[len(ps)-1-un]
@@ -133,52 +119,32 @@ func reduceUnit(p, r *Predicate, unit bool) {
 	}
 }
 
-func reduceEquivales(p, r *Predicate) {
+func reduceEquivales(p, r *Predicate, itp NameBool) {
 	notImplemented()
 }
 
-func reduceImplies(p, r *Predicate) {
+func reduceImplies(p, r *Predicate, itp NameBool) {
 	notImplemented()
 }
 
-func reduceNotEquivales(p, r *Predicate) {
+func reduceNotEquivales(p, r *Predicate, itp NameBool) {
 	notImplemented()
 }
 
 func True() (r *Predicate) {
-	r = NewTerm("", true)
+	r = NewTerm("true")
 	return
 }
 
 func False() (r *Predicate) {
-	r = NewTerm("", false)
+	r = NewTerm("false")
 	return
 }
 
-func StrF(s string) (f func() string) {
-	f = func() string {
-		return s
-	}
-	return
-}
-
-func NewVar(s string) (p *Predicate) {
-	p = NewTerm(s, false)
-	return
-}
-
-func NewTerm(s string, v bool) (p *Predicate) {
+func NewTerm(s string) (p *Predicate) {
 	p = &Predicate{
 		Operator: Term,
-		Val: func() (u, ok bool) {
-			u, ok = v, s == ""
-			return
-		},
-	}
-	if s != "" {
-		p.String = s
-	} else {
-		p.String = fmt.Sprint(v)
+		String:   s,
 	}
 	return
 }
@@ -245,12 +211,6 @@ func (p *Predicate) To() (m map[string]interface{}) {
 
 func (p *Predicate) From(m map[string]interface{},
 	f func(string) (func() (bool, bool), func() string)) (e error) {
-	notImplemented()
-	return
-}
-
-func (p *Predicate) ReplacePostorderAt(r *Predicate,
-	n int) (ok bool) {
 	notImplemented()
 	return
 }
