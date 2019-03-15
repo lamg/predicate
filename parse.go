@@ -37,9 +37,7 @@ unaryOp = '¬'.
 
 */
 
-func Parse(source io.Reader,
-	fv func(string) (func() (bool, bool), bool)) (p *Predicate,
-	e error) {
+func Parse(source io.Reader) (p *Predicate, e error) {
 	notImplemented()
 	return
 }
