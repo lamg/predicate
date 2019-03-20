@@ -29,8 +29,13 @@ import (
 )
 
 func main() {
-	if len(os.Args) == 2 {
-		p, e := predicate.Parse(strings.NewReader(os.Args[1]))
+	var e error
+	if len(os.Args) != 2 {
+		e = fmt.Errorf("Need one argument, not %d", len(os.Args))
+	}
+	if e == nil {
+		var p *predicate.Predicate
+		p, e = predicate.Parse(strings.NewReader(os.Args[1]))
 		if e == nil {
 			np := predicate.Reduce(p,
 				func(name string) (b, def bool) {
@@ -40,7 +45,8 @@ func main() {
 				})
 			fmt.Println(predicate.String(np))
 		}
-	} else {
-		log.Fatalf("Need one argument, not %d", len(os.Args))
+	}
+	if e != nil {
+		log.Fatal(e)
 	}
 }
