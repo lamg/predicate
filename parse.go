@@ -21,9 +21,10 @@
 package predicate
 
 import (
+	"bytes"
 	"fmt"
 	"io"
-	"text/scanner"
+	"io/ioutil"
 	"unicode"
 )
 
@@ -32,48 +33,155 @@ Grammar in EBNF syntax
 
 predicate = predicate binaryOp predicate | unaryOp predicate |
 	'(' predicate ')'| identifier.
-binaryOp = '∧'|'∨'|'⇒'|'≡'|'≢'.
+binaryOp = '∧'|'∨'|'⇒'|'⇐'|'≡'|'≢'.
 unaryOp = '¬'.
 
+simplifying first production:
+predicate =
+	(identifier | unaryOp (identifier|'(' predicate ')') |
+	'(' predicate ')') [binaryOp predicate].
 */
 
 func Parse(source io.Reader) (p *Predicate, e error) {
-	notImplemented()
+	ts, e := tokens(source)
+	if e == nil {
+		p, _, e = parse(ts, 0)
+	}
+	return
+}
+
+func parse(ts []token, i int) (p *Predicate, n int, e error) {
+	p, n = new(Predicate), i
+	if n == len(ts) {
+		e = unexpEnd()
+	} else {
+		t := ts[n]
+		if t.isIdent {
+			p, n = &Predicate{Operator: Term, String: t.value}, n+1
+		} else if isUnary(t.value) {
+			p = &Predicate{
+				Operator: NotOp,
+			}
+			if n+1 != len(ts) && ts[n+1].isIdent {
+				p.A, n = &Predicate{
+					Operator: Term,
+					String:   ts[n+1].value,
+				},
+					n+2
+			} else {
+				p.A, n, e = parse(ts, n+1)
+			}
+		} else if t.value == string(opar) {
+			p, n, e = parse(ts, n+1)
+			if n != len(ts) && ts[n].value == string(cpar) {
+				e, n = nil, n+1
+			} else if e == nil {
+				e = noMatchPar()
+			}
+		} else {
+			e = notRec(t.value)
+		}
+	}
+	if e == nil && n != len(ts) {
+		if isBinary(ts[n].value) {
+			p = &Predicate{
+				Operator: ts[n].value,
+				A:        p,
+			}
+			p.B, n, e = parse(ts, n+1)
+		} else {
+			e = notRec(ts[n].value)
+		}
+	}
+	return
+}
+
+func notRec(t string) (e error) {
+	e = fmt.Errorf("Not recognized token \"%s\"", t)
+	return
+}
+
+func unexpEnd() (e error) {
+	e = fmt.Errorf("Unexpected end of input")
+	return
+}
+
+func noMatchPar() (e error) {
+	e = fmt.Errorf("No matching )")
 	return
 }
 
 const (
-	not  = '¬'
-	and  = '∧'
-	or   = '∨'
-	eq   = '≡'
-	neq  = '≢'
-	imp  = '⇒'
-	opar = '('
-	cpar = ')'
+	not     = '¬'
+	and     = '∧'
+	or      = '∨'
+	eq      = '≡'
+	neq     = '≢'
+	implies = '⇒'
+	follows = '⇐'
+	opar    = '('
+	cpar    = ')'
 )
 
-func tokens(source io.Reader) (ts []string, e error) {
-	s := new(scanner.Scanner)
-	s.Mode = scanner.ScanIdents
-	s.IsIdentRune = func(ch rune, i int) (b bool) {
-		chs := []rune{not, and, or, eq, neq, imp, opar, cpar}
-		ib := func(i int) bool { return chs[i] == ch }
-		ok, _ := bLnSrch(ib, len(chs))
-		b = (i == 0 && ok) || unicode.IsLetter(ch) ||
-			(i > 0 && unicode.IsDigit(ch))
-		return
-	}
-	s.Error = func(n *scanner.Scanner, msg string) {
-		if n.Position.IsValid() {
-			e = fmt.Errorf("%d:%d %s", n.Position.Line,
-				n.Position.Column, msg)
-		} else {
-			e = fmt.Errorf(msg)
+type token struct {
+	value   string
+	isIdent bool
+}
+
+func tokens(source io.Reader) (ts []token, e error) {
+	bs, e := ioutil.ReadAll(source)
+	if e == nil {
+		rd := bytes.NewReader(bs)
+		var ident string
+		for e == nil {
+			var rn rune
+			rn, _, e = rd.ReadRune()
+			if e == nil {
+				rns := []rune{not, and, or, eq, neq, implies, follows,
+					opar, cpar}
+				ib := func(i int) (b bool) {
+					b = rns[i] == rn
+					return
+				}
+				ok, _ := bLnSrch(ib, len(rns))
+				if ok {
+					if ident != "" {
+						ts, ident = append(ts, token{ident, true}), ""
+					}
+					ts = append(ts, token{string(rn), false})
+				} else if unicode.IsLetter(rn) ||
+					(unicode.IsDigit(rn) && len(ident) != 0) {
+					ident = ident + string(rn)
+				} else if unicode.IsSpace(rn) {
+					if ident != "" {
+						ts, ident = append(ts, token{ident, true}), ""
+					}
+				} else {
+					e = notRec(string(rn))
+				}
+			}
+		}
+		if e == io.EOF {
+			if ident != "" {
+				ts = append(ts, token{ident, true})
+			}
+			e = nil
 		}
 	}
-	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
-		ts = append(ts, s.TokenText())
+	return
+}
+
+func isUnary(t string) (ok bool) {
+	return t == NotOp
+}
+
+func isBinary(t string) (ok bool) {
+	bs := []string{AndOp, OrOp, EquivalesOp, NotEquivalesOp,
+		ImpliesOp, FollowsOp}
+	ib := func(i int) (b bool) {
+		b = string(bs[i]) == t
+		return
 	}
+	ok, _ = bLnSrch(ib, len(bs))
 	return
 }

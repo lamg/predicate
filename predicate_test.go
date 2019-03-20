@@ -23,6 +23,7 @@ package predicate
 import (
 	"encoding/json"
 	"github.com/stretchr/testify/require"
+	"strings"
 	"testing"
 )
 
@@ -85,6 +86,65 @@ func TestReduce(t *testing.T) {
 				A:        NewTerm("A"),
 				B:        NewTerm("A"),
 			},
+		},
+		{
+			tov: &Predicate{
+				Operator: ImpliesOp,
+				A:        True(),
+				B:        False(),
+			},
+			res: False(),
+		},
+		{
+			tov: &Predicate{
+				Operator: EquivalesOp,
+				A:        NewTerm("A"),
+				B:        True(),
+			},
+			res: NewTerm("A"),
+		},
+		{
+			tov: &Predicate{
+				Operator: EquivalesOp,
+				A:        NewTerm("A"),
+				B:        False(),
+			},
+			res: negate(NewTerm("A")),
+		},
+		{
+			tov: &Predicate{
+				Operator: EquivalesOp,
+				A:        NewTerm("A"),
+				B:        NewTerm("A"),
+			},
+			res: True(),
+		},
+		{
+			// A ≡ ¬A ≡ false
+			tov: &Predicate{
+				Operator: EquivalesOp,
+				A:        NewTerm("A"),
+				B:        negate(NewTerm("A")),
+			},
+			res: False(),
+		},
+		{
+			// A ≢ A ≡ false
+			tov: &Predicate{
+				Operator: NotEquivalesOp,
+				A:        NewTerm("A"),
+				B:        NewTerm("A"),
+			},
+			res: False(),
+		},
+		{
+			// A ⇐ true ≡ A
+			tov: &Predicate{
+				Operator: FollowsOp,
+				A:        NewTerm("A"),
+				B:        True(),
+			},
+			res: NewTerm("A"),
 		},
 	}
 	itp := func(n string) (v, ok bool) {
@@ -205,6 +265,41 @@ func TestMarshal(t *testing.T) {
 		bs, e := json.Marshal(ps[i].p)
 		require.NoError(t, e)
 		require.Equal(t, ps[i].s, string(bs))
+	}
+	forall(inf, len(ps))
+}
+
+func TestScan(t *testing.T) {
+	txt := "¬∧∨≡≢⇒⇐()bla9   x3  (Abla)"
+	tks := []string{NotOp, AndOp, OrOp, EquivalesOp, NotEquivalesOp,
+		ImpliesOp, FollowsOp, string(opar), string(cpar), "bla9", "x3",
+		"(", "Abla", ")"}
+	scanned, e := tokens(strings.NewReader(txt))
+	require.NoError(t, e)
+	inf := func(i int) {
+		require.Equal(t, tks[i], scanned[i].value)
+	}
+	forall(inf, len(tks))
+}
+
+func TestParse(t *testing.T) {
+	ps := []string{
+		"true ∧ false",
+		"¬A",
+		"¬A ∧ (B ∨ C)",
+		"A ∨ ¬(B ∧ C)",
+		"A ≡ B ≡ ¬C ⇒ D",
+		"A ≡ B ≡ ¬C ⇐ D",
+		"A ≡ B ≡ ¬(C ⇐ D)",
+		"A ∨ B ∨ C", // FIXME A ∨ B ∧ C recognized as A ∨ (B ∧ C)
+		// despite not belonging to the language
+	}
+	inf := func(i int) {
+		np, e := Parse(strings.NewReader(ps[i]))
+		require.NoError(t, e)
+		s := String(np)
+		t.Log(s)
+		require.Equal(t, ps[i], s)
 	}
 	forall(inf, len(ps))
 }

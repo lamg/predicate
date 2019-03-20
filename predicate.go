@@ -38,6 +38,7 @@ const (
 	EquivalesOp    = "≡"
 	NotEquivalesOp = "≢"
 	ImpliesOp      = "⇒"
+	FollowsOp      = "⇐"
 	Term           = "term"
 )
 
@@ -51,6 +52,7 @@ func Reduce(p *Predicate, interp NameBool) (r *Predicate) {
 		reduceAnd,
 		reduceOr,
 		reduceImplies,
+		reduceFollows,
 		reduceEquivales,
 		reduceNotEquivales,
 		id,
@@ -60,6 +62,7 @@ func Reduce(p *Predicate, interp NameBool) (r *Predicate) {
 		AndOp,
 		OrOp,
 		ImpliesOp,
+		FollowsOp,
 		EquivalesOp,
 		NotEquivalesOp,
 		Term,
@@ -120,24 +123,67 @@ func reduceUnit(p, r *Predicate, unit bool, itp NameBool) {
 }
 
 func reduceEquivales(p, r *Predicate, itp NameBool) {
-	notImplemented()
+	ps := []*Predicate{Reduce(p.A, itp), Reduce(p.B, itp)}
+	// A ≡ true ≡ A
+	// A ≡ false ≡ ¬A
+	ib := func(i int) (b bool) {
+		b = ps[i].String == TrueStr || ps[i].String == FalseStr
+		return
+	}
+	ok, n := bLnSrch(ib, len(ps))
+	if ok {
+		if ps[n].String == TrueStr {
+			*r = *ps[len(ps)-1-n]
+		} else {
+			*r = *negate(ps[len(ps)-1-n])
+		}
+	} else if String(ps[0]) == String(ps[1]) {
+		*r = *True()
+	} else if String(ps[0]) == String(negate(ps[1])) ||
+		String(negate(ps[0])) == String(ps[1]) {
+		*r = *False()
+	}
+}
+
+func negate(p *Predicate) (r *Predicate) {
+	r = &Predicate{Operator: NotOp, A: p}
+	return
 }
 
 func reduceImplies(p, r *Predicate, itp NameBool) {
-	notImplemented()
+	// a ⇒ b ≡ ¬a ∨ b
+	np := &Predicate{
+		Operator: OrOp,
+		A:        &Predicate{Operator: NotOp, A: p.A},
+		B:        p.B,
+	}
+	reduceOr(np, r, itp)
+}
+
+func reduceFollows(p, r *Predicate, itp NameBool) {
+	// b ⇐ a ≡ a ⇒ b ≡ ¬a ∨ b
+	np := &Predicate{Operator: OrOp, A: negate(p.B), B: p.A}
+	reduceOr(np, r, itp)
 }
 
 func reduceNotEquivales(p, r *Predicate, itp NameBool) {
-	notImplemented()
+	// a ≢ b ≡ a ≡ ¬b"
+	np := &Predicate{Operator: p.Operator, A: p.A, B: negate(p.B)}
+	reduceEquivales(np, r, itp)
 }
 
+const (
+	TrueStr  = "true"
+	FalseStr = "false"
+)
+
 func True() (r *Predicate) {
-	r = NewTerm("true")
+	r = NewTerm(TrueStr)
 	return
 }
 
 func False() (r *Predicate) {
-	r = NewTerm("false")
+	r = NewTerm(FalseStr)
 	return
 }
 
@@ -183,6 +229,14 @@ func format(oa, ob string) (r string) {
 		OrOp, NotOp,
 		EquivalesOp, NotOp,
 		NotEquivalesOp, NotOp,
+		EquivalesOp, ImpliesOp,
+		NotEquivalesOp, ImpliesOp,
+		EquivalesOp, FollowsOp,
+		NotEquivalesOp, FollowsOp,
+		ImpliesOp, NotOp,
+		ImpliesOp, Term,
+		FollowsOp, NotOp,
+		FollowsOp, Term,
 	}
 	ib := func(i int) (b bool) {
 		oi, oi1 := assocOps[2*i], assocOps[2*i+1]
@@ -204,17 +258,6 @@ const (
 	StrK      = "str"
 )
 
-func (p *Predicate) To() (m map[string]interface{}) {
-	notImplemented()
-	return
-}
-
-func (p *Predicate) From(m map[string]interface{},
-	f func(string) (func() (bool, bool), func() string)) (e error) {
-	notImplemented()
-	return
-}
-
 func (p *Predicate) Valid() (ok bool) {
 	if p.Operator == NotOp {
 		ok = p.A != nil && p.B == nil
@@ -223,7 +266,7 @@ func (p *Predicate) Valid() (ok bool) {
 		ok = p.String != ""
 	} else {
 		ops := []string{AndOp, OrOp, ImpliesOp, EquivalesOp,
-			NotEquivalesOp}
+			NotEquivalesOp, FollowsOp}
 		ib := func(i int) bool { return p.Operator == ops[i] }
 		ok, _ = bLnSrch(ib, len(ops))
 		ok = ok && p.A != nil && p.B != nil
@@ -256,7 +299,7 @@ func execKF(kf []kFunc, key string) (ok bool) {
 type intBool func(int) bool
 
 // bLnSrch is the bounded lineal search algorithm
-// { n ≥ 0 ∧ forall.n.(def.ib) }
+// { n ≥ 0 ∧ forall.n.(def.ib)  }
 // { i =⟨↑j: 0 ≤ j ≤ n ∧ ⟨∀k: 0 ≤ k < j: ¬ib.k⟩: j⟩
 //   ∧ b ≡ i ≠ n }
 func bLnSrch(ib intBool, n int) (b bool, i int) {
