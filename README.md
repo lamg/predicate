@@ -3,6 +3,7 @@
 [![Build Status](https://travis-ci.com/lamg/predicate.svg?branch=master)](https://travis-ci.com/lamg/predicate)
 [![Coverage Status](https://coveralls.io/repos/github/lamg/predicate/badge.svg?branch=master)](https://coveralls.io/github/lamg/predicate?branch=master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/lamg/predicate)](https://goreportcard.com/report/github.com/lamg/predicate)
+
 Predicate is a simple library for parsing, evaluating predicates (boolean functions) and getting a textual representation of them. The syntax is based on [EWD1300][0] which I have formalized in the following grammar:
 
 ```ebnf
