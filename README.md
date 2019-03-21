@@ -1,6 +1,6 @@
 # Predicate
 
-Predicate is a simple library for parsing, evaluating predicates (boolean functions) and getting a textual representation of them. The syntax is based on https://www.cs.utexas.edu/users/EWD/transcriptions/EWD13xx/EWD1300.html, which I have formalized in the following grammar:
+Predicate is a simple library for parsing, evaluating predicates (boolean functions) and getting a textual representation of them. The syntax is based on [EWD1300][0] which I have formalized in the following grammar:
 
 ```ebnf
 predicate = term ('≡'|'≢') term {('≡'|'≢') term}| term.
@@ -36,3 +36,5 @@ A
 true
 ¬A
 ```
+
+[0]: https://www.cs.utexas.edu/users/EWD/transcriptions/EWD13xx/EWD1300.html
