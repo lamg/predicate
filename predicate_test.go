@@ -283,23 +283,33 @@ func TestScan(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
-	ps := []string{
-		"true ∧ false",
-		"¬A",
-		"¬A ∧ (B ∨ C)",
-		"A ∨ ¬(B ∧ C)",
-		"A ≡ B ≡ ¬C ⇒ D",
-		"A ≡ B ≡ ¬C ⇐ D",
-		"A ≡ B ≡ ¬(C ⇐ D)",
-		"A ∨ B ∨ C", // FIXME A ∨ B ∧ C recognized as A ∨ (B ∧ C)
-		// despite not belonging to the language
+	ps := []struct {
+		pred string
+		e    error
+	}{
+		{"true ∧ false", nil},
+		{"¬A", nil},
+		{"¬A ∧ (B ∨ C)", nil},
+		{"A ∨ ¬(B ∧ C)", nil},
+		{"A ≡ B ≡ ¬C ⇒ D", nil},
+		{"A ≡ B ≡ ¬C ⇐ D", nil},
+		{"A ≡ B ≡ ¬(C ⇐ D)", nil},
+		{"A ∨ B ∨ C", nil},
+		{"A ∨ B ∧ C", notRec("∧")},
+		{"A ⇒ B ⇐ C", notRec("⇐")},
+		{"A ∨ (B ∧ C)", nil},
+		{"A ⇒ (B ⇐ C)", nil},
 	}
 	inf := func(i int) {
-		np, e := Parse(strings.NewReader(ps[i]))
-		require.NoError(t, e)
-		s := String(np)
-		t.Log(s)
-		require.Equal(t, ps[i], s)
+		np, e := Parse(strings.NewReader(ps[i].pred))
+		require.Equal(t, ps[i].e, e, "At '%s'", ps[i].pred)
+		if e == nil {
+			s := String(np)
+			t.Log(s)
+			require.Equal(t, ps[i].pred, s)
+		} else {
+			t.Logf("%s → %s", ps[i].pred, e.Error())
+		}
 	}
 	forall(inf, len(ps))
 }

@@ -31,48 +31,137 @@ import (
 /*
 Grammar in EBNF syntax
 
-predicate = predicate binaryOp predicate | unaryOp predicate |
-	'(' predicate ')'| identifier.
-binaryOp = '∧'|'∨'|'⇒'|'⇐'|'≡'|'≢'.
+predicate = term ('≡'|'≢') term {('≡'|'≢') term}| term.
+term = implication | consequence | junction.
+implication = junction '⇒' junction {'⇒' junction}.
+consequence = junction '⇐' junction {'⇐' junction}.
+junction = disjunction | conjunction | factor.
+disjunction = factor '∨' factor {'∨' factor}.
+conjunction = factor '∧' factor {'∧' factor}.
+factor =	[unaryOp] (identifier | '(' predicate ')').
 unaryOp = '¬'.
-
-simplifying first production:
-predicate =
-	(identifier | unaryOp (identifier|'(' predicate ')') |
-	'(' predicate ')') [binaryOp predicate].
 */
 
 func Parse(source io.Reader) (p *Predicate, e error) {
 	ts, e := tokens(source)
 	if e == nil {
-		p, _, e = parse(ts, 0)
+		var n int
+		p, n, e = parse(ts, 0)
+		if e == nil && n != len(ts) {
+			e = notRec(ts[n].value)
+		}
 	}
 	return
 }
 
 func parse(ts []token, i int) (p *Predicate, n int, e error) {
-	p, n = new(Predicate), i
-	if n == len(ts) {
+	if i == len(ts) {
 		e = unexpEnd()
 	} else {
-		t := ts[n]
+		ops := []string{EquivalesOp, NotEquivalesOp}
+		p, n, e = parseOp(ts, i, ops, parseTerm)
+		if e != nil && e.Error() == notFound(EquivalesOp).Error() {
+			p, n, e = parseTerm(ts, i)
+		}
+	}
+	return
+}
+
+func parseTerm(ts []token, i int) (p *Predicate, n int,
+	e error) {
+	ops := []string{ImpliesOp, FollowsOp}
+	ib := func(k int) (b bool) {
+		p, n, e = parseOp(ts, i, []string{ops[k]}, parseJunction)
+		b = e == nil
+		return
+	}
+	ok, _ := bLnSrch(ib, len(ops))
+	if !ok {
+		p, n, e = parseJunction(ts, i)
+	}
+	return
+}
+
+func parseJunction(ts []token, i int) (p *Predicate, n int,
+	e error) {
+	ops := []string{OrOp, AndOp}
+	ib := func(k int) (b bool) {
+		p, n, e = parseOp(ts, i, []string{ops[k]}, parseFactor)
+		b = e == nil
+		return
+	}
+	ok, _ := bLnSrch(ib, len(ops))
+	if !ok {
+		p, n, e = parseFactor(ts, i)
+	}
+	return
+}
+
+type parser func([]token, int) (*Predicate, int, error)
+
+func parseOp(ts []token, i int, ops []string,
+	s parser) (p *Predicate, n int, e error) {
+	p, n, e = s(ts, i)
+	op := moreOps(ts, ops, n)
+	if op == "" {
+		e = notFound(ops[0])
+	}
+	curr := p
+	for e == nil && op != "" {
+		var b *Predicate
+		b, n, e = s(ts, n+1)
+		if e == nil {
+			old := &Predicate{
+				Operator: curr.Operator,
+				A:        curr.A,
+				B:        curr.B,
+				String:   curr.String,
+			}
+			curr.Operator = op
+			curr.A = old
+			curr.B = b
+			curr = curr.B
+		}
+		op = moreOps(ts, ops, n)
+	}
+	return
+}
+
+func moreOps(ts []token, ops []string, n int) (op string) {
+	if n != len(ts) {
+		op = ts[n].value
+		ib := func(i int) bool { return ops[i] == op }
+		ok, _ := bLnSrch(ib, len(ops))
+		if !ok {
+			op = ""
+		}
+	}
+	return
+}
+
+func notFound(op string) (e error) {
+	e = fmt.Errorf("Not found %s", op)
+	return
+}
+
+func parseFactor(ts []token, i int) (p *Predicate, n int, e error) {
+	n = i
+	t := ts[n]
+	var neg *Predicate
+	if isUnary(t.value) {
+		neg, n = &Predicate{Operator: t.value}, n+1
+	}
+	if n != len(ts) {
+		t = ts[n]
+	} else {
+		e = unexpEnd()
+	}
+	var np *Predicate
+	if e == nil {
 		if t.isIdent {
-			p, n = &Predicate{Operator: Term, String: t.value}, n+1
-		} else if isUnary(t.value) {
-			p = &Predicate{
-				Operator: NotOp,
-			}
-			if n+1 != len(ts) && ts[n+1].isIdent {
-				p.A, n = &Predicate{
-					Operator: Term,
-					String:   ts[n+1].value,
-				},
-					n+2
-			} else {
-				p.A, n, e = parse(ts, n+1)
-			}
+			np, n = &Predicate{Operator: Term, String: t.value}, n+1
 		} else if t.value == string(opar) {
-			p, n, e = parse(ts, n+1)
+			np, n, e = parse(ts, n+1)
 			if n != len(ts) && ts[n].value == string(cpar) {
 				e, n = nil, n+1
 			} else if e == nil {
@@ -82,15 +171,12 @@ func parse(ts []token, i int) (p *Predicate, n int, e error) {
 			e = notRec(t.value)
 		}
 	}
-	if e == nil && n != len(ts) {
-		if isBinary(ts[n].value) {
-			p = &Predicate{
-				Operator: ts[n].value,
-				A:        p,
-			}
-			p.B, n, e = parse(ts, n+1)
+	if e == nil {
+		if neg != nil {
+			neg.A = np
+			p = neg
 		} else {
-			e = notRec(ts[n].value)
+			p = np
 		}
 	}
 	return
