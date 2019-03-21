@@ -23,18 +23,26 @@ cd predicate/cmd/reduce && go install
 
 ## Example
 
-```sh
-reduce 'A ∧ true'
-reduce ¬false
-reduce 'A ≡ true ⇒ false'
-```
-
-outputs:
+Execute the command `reduce` with a predicate as argument, to get a reduced expression. Below appear several examples of the command's execution and its correspondent output shown after `→`.
 
 ```
-A
-true
-¬A
+reduce true → true
+reduce ¬false → true
+reduce ¬true → false
+reduce 'true ∧ false' → false
+reduce 'false ∧ false' → false
+reduce 'false ∨ false' → false
+reduce 'false ∨ true' → true
+reduce '¬(true ∧ true)' → false
+reduce '¬(true ∧ ¬A)' → ¬(¬A)
+reduce 'A ∧ A' → A ∧ A
+reduce 'true ⇒ false' → false
+reduce 'A ≡ true' → A
+reduce 'A ≡ false' → ¬A
+reduce 'A ≡ A' → true
+reduce 'A ≡ ¬A' → false
+reduce 'A ≢ A' → false
+reduce 'A ⇐ true' → A
 ```
 
 [0]: https://www.cs.utexas.edu/users/EWD/transcriptions/EWD13xx/EWD1300.html
