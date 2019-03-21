@@ -35,7 +35,7 @@ reduce 'false ∨ false' → false
 reduce 'false ∨ true' → true
 reduce '¬(true ∧ true)' → false
 reduce '¬(true ∧ ¬A)' → ¬(¬A)
-reduce 'A ∧ A' → A ∧ A
+reduce 'A ∧ A' → A
 reduce 'true ⇒ false' → false
 reduce 'A ≡ true' → A
 reduce 'A ≡ false' → ¬A

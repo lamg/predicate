@@ -101,24 +101,28 @@ func reduceOr(p, r *Predicate, itp NameBool) {
 
 func reduceUnit(p, r *Predicate, unit bool, itp NameBool) {
 	ps := []*Predicate{Reduce(p.A, itp), Reduce(p.B, itp)}
-	unitF, un := false, 0
-	ib := func(i int) (b bool) {
-		v, ok := itp(ps[i].String)
-		b = ps[i].Operator == Term && ok && v != unit
-		if ps[i].Operator == Term && ok && v == unit {
-			unitF, un = true, i
-		}
-		return
-	}
-	zeroF, _ := bLnSrch(ib, len(ps))
-	if zeroF {
-		r.Operator = Term
-		r.String = fmt.Sprint(!unit)
-	} else if unitF {
-		*r = *ps[len(ps)-1-un]
+	if String(ps[0]) == String(ps[1]) {
+		*r = *ps[0]
 	} else {
-		r.Operator = p.Operator
-		r.A, r.B = ps[0], ps[1]
+		unitF, un := false, 0
+		ib := func(i int) (b bool) {
+			v, ok := itp(ps[i].String)
+			b = ps[i].Operator == Term && ok && v != unit
+			if ps[i].Operator == Term && ok && v == unit {
+				unitF, un = true, i
+			}
+			return
+		}
+		zeroF, _ := bLnSrch(ib, len(ps))
+		if zeroF {
+			r.Operator = Term
+			r.String = fmt.Sprint(!unit)
+		} else if unitF {
+			*r = *ps[len(ps)-1-un]
+		} else {
+			r.Operator = p.Operator
+			r.A, r.B = ps[0], ps[1]
+		}
 	}
 }
 

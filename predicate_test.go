@@ -81,11 +81,7 @@ func TestReduce(t *testing.T) {
 				A:        NewTerm("A"),
 				B:        NewTerm("A"),
 			},
-			res: &Predicate{
-				Operator: AndOp,
-				A:        NewTerm("A"),
-				B:        NewTerm("A"),
-			},
+			res: NewTerm("A"),
 		},
 		{
 			tov: &Predicate{
