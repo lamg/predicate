@@ -298,13 +298,14 @@ func TestParse(t *testing.T) {
 	}
 	inf := func(i int) {
 		np, e := Parse(strings.NewReader(ps[i].pred))
-		require.Equal(t, ps[i].e, e, "At '%s'", ps[i].pred)
+		require.Equal(t, e == nil, ps[i].e == nil)
 		if e == nil {
 			s := String(np)
 			t.Log(s)
 			require.Equal(t, ps[i].pred, s)
 		} else {
 			t.Logf("%s → %s", ps[i].pred, e.Error())
+			require.Equal(t, ps[i].e.Error(), e.Error(), "At '%s'", ps[i].pred)
 		}
 	}
 	forall(inf, len(ps))

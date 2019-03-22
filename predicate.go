@@ -279,10 +279,6 @@ func (p *Predicate) Valid() (ok bool) {
 	return
 }
 
-func notImplemented() {
-	panic("Not implemented")
-}
-
 type kFunc struct {
 	k string
 	f func()
