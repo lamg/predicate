@@ -142,6 +142,27 @@ func TestReduce(t *testing.T) {
 			},
 			res: NewTerm("A"),
 		},
+		{
+			// B ≡ A ≡ C ∧ ¬true → B ≡ ¬A
+			tov: &Predicate{
+				Operator: EquivalesOp,
+				A:        NewTerm("B"),
+				B: &Predicate{
+					Operator: EquivalesOp,
+					A:        NewTerm("A"),
+					B: &Predicate{
+						Operator: AndOp,
+						A:        NewTerm("C"),
+						B:        negate(True()),
+					},
+				},
+			},
+			res: &Predicate{
+				Operator: EquivalesOp,
+				A:        NewTerm("B"),
+				B:        negate(NewTerm("A")),
+			},
+		},
 	}
 	itp := func(n string) (v, ok bool) {
 		v, ok = n == "true", n != "A"

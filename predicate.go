@@ -146,6 +146,10 @@ func reduceEquivales(p, r *Predicate, itp NameBool) {
 	} else if String(ps[0]) == String(negate(ps[1])) ||
 		String(negate(ps[0])) == String(ps[1]) {
 		*r = *False()
+	} else {
+		r.Operator = EquivalesOp
+		r.A = ps[0]
+		r.B = ps[1]
 	}
 }
 
