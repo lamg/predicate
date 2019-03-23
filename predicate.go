@@ -46,8 +46,11 @@ type NameBool func(string) (bool, bool)
 
 func Reduce(p *Predicate, interp NameBool) (r *Predicate) {
 	r = new(Predicate)
-	id := func(p, r *Predicate, itp NameBool) { *r = *p }
-	fps := []func(*Predicate, *Predicate, NameBool){
+	id := func(p, r *Predicate, itp NameBool) bool {
+		*r = *p
+		return false
+	}
+	fps := []func(*Predicate, *Predicate, NameBool) bool{
 		reduceNot,
 		reduceAnd,
 		reduceOr,
@@ -76,7 +79,7 @@ func Reduce(p *Predicate, interp NameBool) (r *Predicate) {
 	return
 }
 
-func reduceNot(p, r *Predicate, itp NameBool) {
+func reduceNot(p, r *Predicate, itp NameBool) (ok bool) {
 	nr := Reduce(p.A, itp)
 	v, ok := false, nr.Operator == Term
 	if ok {
@@ -89,17 +92,21 @@ func reduceNot(p, r *Predicate, itp NameBool) {
 		r.A = nr
 		r.Operator = NotOp
 	}
+	return
 }
 
-func reduceAnd(p, r *Predicate, itp NameBool) {
-	reduceUnit(p, r, true, itp)
+func reduceAnd(p, r *Predicate, itp NameBool) (ok bool) {
+	ok = reduceUnit(p, r, true, itp)
+	return
 }
 
-func reduceOr(p, r *Predicate, itp NameBool) {
-	reduceUnit(p, r, false, itp)
+func reduceOr(p, r *Predicate, itp NameBool) (ok bool) {
+	ok = reduceUnit(p, r, false, itp)
+	return
 }
 
-func reduceUnit(p, r *Predicate, unit bool, itp NameBool) {
+func reduceUnit(p, r *Predicate, unit bool,
+	itp NameBool) (ok bool) {
 	ps := []*Predicate{Reduce(p.A, itp), Reduce(p.B, itp)}
 	if String(ps[0]) == String(ps[1]) {
 		*r = *ps[0]
@@ -117,16 +124,19 @@ func reduceUnit(p, r *Predicate, unit bool, itp NameBool) {
 		if zeroF {
 			r.Operator = Term
 			r.String = fmt.Sprint(!unit)
+			ok = true
 		} else if unitF {
 			*r = *ps[len(ps)-1-un]
+			ok = true
 		} else {
 			r.Operator = p.Operator
 			r.A, r.B = ps[0], ps[1]
 		}
 	}
+	return
 }
 
-func reduceEquivales(p, r *Predicate, itp NameBool) {
+func reduceEquivales(p, r *Predicate, itp NameBool) (ok bool) {
 	ps := []*Predicate{Reduce(p.A, itp), Reduce(p.B, itp)}
 	// A ≡ true ≡ A
 	// A ≡ false ≡ ¬A
@@ -143,41 +153,73 @@ func reduceEquivales(p, r *Predicate, itp NameBool) {
 		}
 	} else if String(ps[0]) == String(ps[1]) {
 		*r = *True()
+		ok = true
 	} else if String(ps[0]) == String(negate(ps[1])) ||
 		String(negate(ps[0])) == String(ps[1]) {
 		*r = *False()
+		ok = true
 	} else {
 		r.Operator = EquivalesOp
 		r.A = ps[0]
 		r.B = ps[1]
 	}
-}
-
-func negate(p *Predicate) (r *Predicate) {
-	r = &Predicate{Operator: NotOp, A: p}
 	return
 }
 
-func reduceImplies(p, r *Predicate, itp NameBool) {
-	// a ⇒ b ≡ ¬a ∨ b
-	np := &Predicate{
-		Operator: OrOp,
-		A:        &Predicate{Operator: NotOp, A: p.A},
-		B:        p.B,
+func negate(p *Predicate) (r *Predicate) {
+	if p.String == TrueStr {
+		r = False()
+	} else if p.String == FalseStr {
+		r = True()
+	} else {
+		r = &Predicate{Operator: NotOp, A: p}
 	}
-	reduceOr(np, r, itp)
+	return
 }
 
-func reduceFollows(p, r *Predicate, itp NameBool) {
-	// b ⇐ a ≡ a ⇒ b ≡ ¬a ∨ b
-	np := &Predicate{Operator: OrOp, A: negate(p.B), B: p.A}
-	reduceOr(np, r, itp)
+func reduceImplies(p, r *Predicate, itp NameBool) (ok bool) {
+	ps := []*Predicate{Reduce(p.A, itp), Reduce(p.B, itp)}
+	ib := func(i int) (b bool) {
+		b = ps[i].String == TrueStr || ps[i].String == FalseStr
+		return
+	}
+	ok, _ = bLnSrch(ib, len(ps))
+	if ok {
+		// a ⇒ b ≡ ¬a ∨ b
+		np := &Predicate{
+			Operator: OrOp,
+			A:        negate(p.A),
+			B:        p.B,
+		}
+		reduceOr(np, r, itp)
+	} else {
+		r.Operator = ImpliesOp
+		r.A = ps[0]
+		r.B = ps[1]
+	}
+	return
 }
 
-func reduceNotEquivales(p, r *Predicate, itp NameBool) {
+func reduceFollows(p, r *Predicate, itp NameBool) (ok bool) {
+	// b ⇐ a ≡ a ⇒ b
+	np := &Predicate{Operator: ImpliesOp, A: p.B, B: p.A}
+	ok = reduceImplies(np, r, itp)
+	if !ok {
+		r.Operator = FollowsOp
+		r.A, r.B = r.B, r.A
+	}
+	return
+}
+
+func reduceNotEquivales(p, r *Predicate, itp NameBool) (ok bool) {
 	// a ≢ b ≡ a ≡ ¬b"
-	np := &Predicate{Operator: p.Operator, A: p.A, B: negate(p.B)}
-	reduceEquivales(np, r, itp)
+	np := &Predicate{Operator: EquivalesOp, A: p.A, B: negate(p.B)}
+	ok = reduceEquivales(np, r, itp)
+	if !ok {
+		r.Operator = NotEquivalesOp
+		r.B = r.B.A
+	}
+	return
 }
 
 const (
@@ -224,47 +266,28 @@ func String(p *Predicate) (r string) {
 }
 
 func format(oa, ob string) (r string) {
-	assocOps := []string{
-		AndOp, AndOp,
-		OrOp, OrOp,
-		EquivalesOp, EquivalesOp,
-		EquivalesOp, NotEquivalesOp,
-		AndOp, Term,
-		OrOp, Term,
-		EquivalesOp, Term,
-		NotEquivalesOp, Term,
-		AndOp, NotOp,
-		OrOp, NotOp,
-		EquivalesOp, NotOp,
-		NotEquivalesOp, NotOp,
-		EquivalesOp, ImpliesOp,
-		NotEquivalesOp, ImpliesOp,
-		EquivalesOp, FollowsOp,
-		NotEquivalesOp, FollowsOp,
-		ImpliesOp, NotOp,
-		ImpliesOp, Term,
-		FollowsOp, NotOp,
-		FollowsOp, Term,
+	priority := map[string]int{
+		Term:           3,
+		NotOp:          3,
+		AndOp:          2,
+		OrOp:           2,
+		ImpliesOp:      1,
+		FollowsOp:      1,
+		EquivalesOp:    0,
+		NotEquivalesOp: 0,
 	}
-	ib := func(i int) (b bool) {
-		oi, oi1 := assocOps[2*i], assocOps[2*i+1]
-		b = (oi == oa && oi1 == ob) || (oi == ob && oi1 == oa)
-		return
-	}
-	ok, _ := bLnSrch(ib, len(assocOps)/2)
-	if ok {
+	pa, pb := priority[oa], priority[ob]
+	if pa <= pb && !(pa == pb && (pa == 1 || pa == 2) && oa != ob) {
+		// the second conjunct is for excluding the case
+		// when the pair contains ∧,∨ or ⇒,⇐ which need
+		// parenthesis if appear in sequence since they aren't
+		// associative, like ≡,≢
 		r = "%s"
 	} else {
 		r = "(%s)"
 	}
 	return
 }
-
-const (
-	OperandAK = "a"
-	OperandBK = "b"
-	StrK      = "str"
-)
 
 func (p *Predicate) Valid() (ok bool) {
 	if p.Operator == NotOp {
