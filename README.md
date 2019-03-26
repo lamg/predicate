@@ -1,8 +1,6 @@
 # Predicate
 
-[![Build Status](https://travis-ci.com/lamg/predicate.svg?branch=master)](https://travis-ci.com/lamg/predicate)
-[![Coverage Status](https://coveralls.io/repos/github/lamg/predicate/badge.svg?branch=master)](https://coveralls.io/github/lamg/predicate?branch=master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/lamg/predicate)](https://goreportcard.com/report/github.com/lamg/predicate)
+[![Build Status][1]][2] [![Coverage Status][3]][4] [![Go Report Card][5]][6]
 
 Predicate is a simple library for parsing, evaluating and textually representing predicates (boolean functions).
 
@@ -78,3 +76,9 @@ A ≢ B ≡ A ≡ ¬B
 ```
 
 [0]: https://www.cs.utexas.edu/users/EWD/transcriptions/EWD13xx/EWD1300.html
+[1]: https://travis-ci.com/lamg/predicate.svg?branch=master
+[2]: https://travis-ci.com/lamg/predicate
+[3]: https://coveralls.io/repos/github/lamg/predicate/badge.svg?branch=master
+[4]: https://coveralls.io/github/lamg/predicate?branch=master
+[5]: https://goreportcard.com/badge/github.com/lamg/predicate
+[6]: https://goreportcard.com/report/github.com/lamg/predicate
