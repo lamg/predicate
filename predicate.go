@@ -47,7 +47,18 @@ type NameBool func(string) (bool, bool)
 func Reduce(p *Predicate, interp NameBool) (r *Predicate) {
 	r = new(Predicate)
 	id := func(p, r *Predicate, itp NameBool) bool {
-		*r = *p
+		v, ok := itp(p.String)
+		if ok {
+			if v {
+				tr := True()
+				*r = *tr
+			} else {
+				tr := False()
+				*r = *tr
+			}
+		} else {
+			*r = *p
+		}
 		return false
 	}
 	fps := []func(*Predicate, *Predicate, NameBool) bool{

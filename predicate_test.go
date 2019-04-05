@@ -163,9 +163,18 @@ func TestReduce(t *testing.T) {
 				B:        negate(NewTerm("A")),
 			},
 		},
+		{
+			// with X = true
+			tov: &Predicate{
+				Operator: Term,
+				String:   "X",
+			},
+			res: True(),
+		},
 	}
 	itp := func(n string) (v, ok bool) {
-		v, ok = n == "true", n != "A"
+		v, ok = n == TrueStr || n == "X",
+			n == TrueStr || n == FalseStr || n == "X"
 		return
 	}
 	inf := func(i int) {
