@@ -118,30 +118,37 @@ func reduceOr(p, r *Predicate, itp NameBool) (ok bool) {
 
 func reduceUnit(p, r *Predicate, unit bool,
 	itp NameBool) (ok bool) {
-	ps := []*Predicate{Reduce(p.A, itp), Reduce(p.B, itp)}
-	if String(ps[0]) == String(ps[1]) {
-		*r = *ps[0]
-	} else {
-		unitF, un := false, 0
-		ib := func(i int) (b bool) {
-			v, ok := itp(ps[i].String)
-			b = ps[i].Operator == Term && ok && v != unit
-			if ps[i].Operator == Term && ok && v == unit {
-				unitF, un = true, i
-			}
-			return
+	ps0 := make([]*Predicate, 2)
+	var pr *Predicate
+	ps := []func(){
+		func() { pr = Reduce(p.A, itp); ps0[0] = pr },
+		func() { pr = Reduce(p.B, itp); ps0[1] = pr },
+	}
+	unitF, un := false, 0
+	ib := func(i int) (b bool) {
+		ps[i]() // this avoids superflous
+		// evaluation if zero found
+		v, ok := itp(pr.String)
+		b = pr.Operator == Term && ok && v != unit
+		if pr.Operator == Term && ok && v == unit {
+			unitF, un = true, i
 		}
-		zeroF, _ := bLnSrch(ib, len(ps))
-		if zeroF {
-			r.Operator = Term
-			r.String = fmt.Sprint(!unit)
-			ok = true
-		} else if unitF {
-			*r = *ps[len(ps)-1-un]
-			ok = true
+		return
+	}
+	zeroF, _ := bLnSrch(ib, len(ps))
+	if zeroF {
+		r.Operator = Term
+		r.String = fmt.Sprint(!unit)
+		ok = true
+	} else if unitF {
+		*r = *ps0[len(ps)-1-un]
+		ok = true
+	} else {
+		if String(ps0[0]) == String(ps0[1]) {
+			*r = *ps0[0]
 		} else {
 			r.Operator = p.Operator
-			r.A, r.B = ps[0], ps[1]
+			r.A, r.B = ps0[0], ps0[1]
 		}
 	}
 	return
