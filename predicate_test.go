@@ -165,9 +165,22 @@ func TestReduce(t *testing.T) {
 		},
 		{
 			// with X = true
+			tov: NewTerm("X"),
+			res: True(),
+		},
+		{
 			tov: &Predicate{
-				Operator: Term,
-				String:   "X",
+				Operator: AndOp,
+				A:        False(),
+				B:        NewTerm("Y"),
+			},
+			res: False(),
+		},
+		{
+			tov: &Predicate{
+				Operator: OrOp,
+				A:        True(),
+				B:        NewTerm("Y"),
 			},
 			res: True(),
 		},
@@ -175,6 +188,9 @@ func TestReduce(t *testing.T) {
 	itp := func(n string) (v, ok bool) {
 		v, ok = n == TrueStr || n == "X",
 			n == TrueStr || n == FalseStr || n == "X"
+		if n == "Y" {
+			t.Fatalf("%s cannot be evaluated when zero found", n)
+		}
 		return
 	}
 	inf := func(i int) {
