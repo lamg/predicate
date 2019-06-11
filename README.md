@@ -54,7 +54,7 @@ unaryOp = '¬'.
 
 ## Reduction rules
 
-The procedure `Reduce` applies the following rules while reducing the predicate, i.e. if there's a constant (true, false) in the predicate this rules are applied.
+The procedure `Reduce` applies the following rules while reducing the predicate.
 
 ```
 ¬true ≡ false
