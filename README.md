@@ -13,28 +13,28 @@ cd predicate/cmd/reduce && go install
 
 ## Example
 
-Execute the command `reduce` with a predicate as argument, to get a reduced expression. Below appear several examples of the command's execution and its correspondent output shown after `→`.
+The following table shows some examples of how `reduce` works. Using standard input and output makes easier typing the boolean operators, since you can use Vim's multibyte input method (ex: C-k OR writes ∨), and then pipe the selected text using the visual mode to the `reduce` command, or just store the predicates in a file and then use it as standard input to `reduce` (`reduce < file_with_predicates`).
 
-```
-reduce true → true
-reduce ¬false → true
-reduce ¬true → false
-reduce 'true ∧ false' → false
-reduce 'false ∧ false' → false
-reduce 'false ∨ false' → false
-reduce 'false ∨ true' → true
-reduce '¬(true ∧ true)' → false
-reduce '¬(true ∧ ¬A)' → ¬(¬A)
-reduce 'A ∧ A' → A
-reduce 'true ⇒ false' → false
-reduce 'A ≡ true' → A
-reduce 'A ≡ false' → ¬A
-reduce 'A ≡ A' → true
-reduce 'A ≡ ¬A' → false
-reduce 'A ≢ A' → false
-reduce 'A ⇐ true' → A
-reduce 'A ≢ false' → true
-```
+| Standard input  | Standard output |
+|-----------------|-----------------|
+| true            | true            |
+| ¬false          | true            |
+| ¬true           | false           |
+| true ∧ false    | false           |
+| false ∧ false   | false           |
+| false ∨ false   | false           |
+| false ∨ true    | true            |
+| ¬(true ∧ true)  | false           |
+| ¬(true ∧ ¬A)    | ¬(¬A)           |
+| A ∧ A           | A               |
+| true ⇒ false    | false           |
+| A ≡ true        | A               |
+| A ≡ false       | ¬A              |
+| A ≡ A           | true            |
+| A ≡ ¬A          | false           |
+| A ≢ A           | false           |
+| A ⇐ true        | A               |
+| A ≢ false       | A               |
 
 ## Syntax
 

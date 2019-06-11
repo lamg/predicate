@@ -21,31 +21,32 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"github.com/lamg/predicate"
+	pred "github.com/lamg/predicate"
 	"log"
 	"os"
 	"strings"
 )
 
 func main() {
-	var e error
-	if len(os.Args) != 2 {
-		e = fmt.Errorf("Need one argument, not %d", len(os.Args))
-	}
-	if e == nil {
-		var p *predicate.Predicate
-		p, e = predicate.Parse(strings.NewReader(os.Args[1]))
+	sc := bufio.NewScanner(os.Stdin)
+	for sc.Scan() {
+		t := sc.Text()
+		p, e := pred.Parse(strings.NewReader(t))
 		if e == nil {
-			np := predicate.Reduce(p,
-				func(name string) (b, def bool) {
-					b, def = name == "true",
-						name == "true" || name == "false"
-					return
-				})
-			fmt.Println(predicate.String(np))
+			stdInterp := func(name string) (val, def bool) {
+				val, def = name == pred.TrueStr,
+					name == pred.TrueStr || name == pred.FalseStr
+				return
+			}
+			np := pred.Reduce(p, stdInterp)
+			fmt.Println(pred.String(np))
+		} else {
+			log.Println(e.Error())
 		}
 	}
+	e := sc.Err()
 	if e != nil {
 		log.Fatal(e)
 	}
