@@ -22,6 +22,7 @@ package predicate
 
 import (
 	"encoding/json"
+	alg "github.com/lamg/algorithms"
 	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
@@ -201,7 +202,7 @@ func TestReduce(t *testing.T) {
 		require.Equal(t, String(ps[i].res), sr)
 		t.Logf("%s → %s", stov, sr)
 	}
-	forall(inf, len(ps))
+	alg.Forall(inf, len(ps))
 }
 
 func TestNot(t *testing.T) {
@@ -284,7 +285,7 @@ func TestString(t *testing.T) {
 		rs := String(ts[i].p)
 		require.Equal(t, ts[i].s, rs, "At %d", i)
 	}
-	forall(inf, len(ts))
+	alg.Forall(inf, len(ts))
 }
 
 func TestMarshal(t *testing.T) {
@@ -308,7 +309,7 @@ func TestMarshal(t *testing.T) {
 		require.NoError(t, e)
 		require.Equal(t, ps[i].s, string(bs))
 	}
-	forall(inf, len(ps))
+	alg.Forall(inf, len(ps))
 }
 
 func TestScan(t *testing.T) {
@@ -321,7 +322,7 @@ func TestScan(t *testing.T) {
 	inf := func(i int) {
 		require.Equal(t, tks[i], scanned[i].value)
 	}
-	forall(inf, len(tks))
+	alg.Forall(inf, len(tks))
 }
 
 func TestParse(t *testing.T) {
@@ -354,5 +355,5 @@ func TestParse(t *testing.T) {
 			require.Equal(t, ps[i].e.Error(), e.Error(), "At '%s'", ps[i].pred)
 		}
 	}
-	forall(inf, len(ps))
+	alg.Forall(inf, len(ps))
 }

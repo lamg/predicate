@@ -22,6 +22,7 @@ package predicate
 
 import (
 	"fmt"
+	alg "github.com/lamg/algorithms"
 )
 
 type Predicate struct {
@@ -46,21 +47,6 @@ type NameBool func(string) (bool, bool)
 
 func Reduce(p *Predicate, interp NameBool) (r *Predicate) {
 	r = new(Predicate)
-	id := func(p, r *Predicate, itp NameBool) bool {
-		v, ok := itp(p.String)
-		if ok {
-			if v {
-				tr := True()
-				*r = *tr
-			} else {
-				tr := False()
-				*r = *tr
-			}
-		} else {
-			*r = *p
-		}
-		return false
-	}
 	fps := []func(*Predicate, *Predicate, NameBool) bool{
 		reduceNot,
 		reduceAnd,
@@ -69,7 +55,7 @@ func Reduce(p *Predicate, interp NameBool) (r *Predicate) {
 		reduceFollows,
 		reduceEquivales,
 		reduceNotEquivales,
-		id,
+		reduceTerm,
 	}
 	ops := []string{
 		NotOp,
@@ -81,12 +67,28 @@ func Reduce(p *Predicate, interp NameBool) (r *Predicate) {
 		NotEquivalesOp,
 		Term,
 	}
-	fs := make([]kFunc, len(fps))
+	fs := make([]alg.KFunc, len(fps))
 	inf := func(i int) {
-		fs[i] = kFunc{ops[i], func() { fps[i](p, r, interp) }}
+		fs[i] = alg.KFunc{ops[i], func() { fps[i](p, r, interp) }}
 	}
-	forall(inf, len(fs))
-	execKF(fs, p.Operator)
+	alg.Forall(inf, len(fs))
+	alg.ExecF(fs, p.Operator)
+	return
+}
+
+func reduceTerm(p, r *Predicate, itp NameBool) (ok bool) {
+	v, ok := itp(p.String)
+	if ok {
+		if v {
+			tr := True()
+			*r = *tr
+		} else {
+			tr := False()
+			*r = *tr
+		}
+	} else {
+		*r = *p
+	}
 	return
 }
 
@@ -135,7 +137,7 @@ func reduceUnit(p, r *Predicate, unit bool,
 		}
 		return
 	}
-	zeroF, _ := bLnSrch(ib, len(ps))
+	zeroF, _ := alg.BLnSrch(ib, len(ps))
 	if zeroF {
 		r.Operator = Term
 		r.String = fmt.Sprint(!unit)
@@ -162,7 +164,7 @@ func reduceEquivales(p, r *Predicate, itp NameBool) (ok bool) {
 		b = ps[i].String == TrueStr || ps[i].String == FalseStr
 		return
 	}
-	ok, n := bLnSrch(ib, len(ps))
+	ok, n := alg.BLnSrch(ib, len(ps))
 	if ok {
 		if ps[n].String == TrueStr {
 			*r = *ps[len(ps)-1-n]
@@ -201,7 +203,7 @@ func reduceImplies(p, r *Predicate, itp NameBool) (ok bool) {
 		b = ps[i].String == TrueStr || ps[i].String == FalseStr
 		return
 	}
-	ok, _ = bLnSrch(ib, len(ps))
+	ok, _ = alg.BLnSrch(ib, len(ps))
 	if ok {
 		// a ⇒ b ≡ ¬a ∨ b
 		np := &Predicate{
@@ -317,55 +319,9 @@ func (p *Predicate) Valid() (ok bool) {
 		ops := []string{AndOp, OrOp, ImpliesOp, EquivalesOp,
 			NotEquivalesOp, FollowsOp}
 		ib := func(i int) bool { return p.Operator == ops[i] }
-		ok, _ = bLnSrch(ib, len(ops))
+		ok, _ = alg.BLnSrch(ib, len(ops))
 		ok = ok && p.A != nil && p.B != nil
 		ok = ok && p.A.Valid() && p.B.Valid()
 	}
 	return
-}
-
-type kFunc struct {
-	k string
-	f func()
-}
-
-func execKF(kf []kFunc, key string) (ok bool) {
-	ib := func(i int) (b bool) {
-		b = kf[i].k == key
-		return
-	}
-	ok, n := bLnSrch(ib, len(kf))
-	if ok {
-		kf[n].f()
-	}
-	return
-}
-
-type intBool func(int) bool
-
-// bLnSrch is the bounded lineal search algorithm
-// { n ≥ 0 ∧ forall.n.(def.ib)  }
-// { i =⟨↑j: 0 ≤ j ≤ n ∧ ⟨∀k: 0 ≤ k < j: ¬ib.k⟩: j⟩
-//   ∧ b ≡ i ≠ n }
-func bLnSrch(ib intBool, n int) (b bool, i int) {
-	b, i, udb := false, 0, true
-	// udb: undefined b for i
-	for !b && i != n {
-		if udb {
-			// udb ∧ i ≠ n
-			b, udb = ib(i), false
-		} else {
-			// ¬udb ∧ ¬b
-			i, udb = i+1, true
-		}
-	}
-	return
-}
-
-type intF func(int)
-
-func forall(inf intF, n int) {
-	for i := 0; i != n; i++ {
-		inf(i)
-	}
 }

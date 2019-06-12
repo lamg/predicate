@@ -23,6 +23,7 @@ package predicate
 import (
 	"bytes"
 	"fmt"
+	alg "github.com/lamg/algorithms"
 	"io"
 	"io/ioutil"
 	"unicode"
@@ -75,7 +76,7 @@ func parseTerm(ts []token, i int) (p *Predicate, n int,
 		b = e == nil
 		return
 	}
-	ok, _ := bLnSrch(ib, len(ops))
+	ok, _ := alg.BLnSrch(ib, len(ops))
 	if !ok {
 		p, n, e = parseJunction(ts, i)
 	}
@@ -90,7 +91,7 @@ func parseJunction(ts []token, i int) (p *Predicate, n int,
 		b = e == nil
 		return
 	}
-	ok, _ := bLnSrch(ib, len(ops))
+	ok, _ := alg.BLnSrch(ib, len(ops))
 	if !ok {
 		p, n, e = parseFactor(ts, i)
 	}
@@ -131,7 +132,7 @@ func moreOps(ts []token, ops []string, n int) (op string) {
 	if n != len(ts) {
 		op = ts[n].value
 		ib := func(i int) bool { return ops[i] == op }
-		ok, _ := bLnSrch(ib, len(ops))
+		ok, _ := alg.BLnSrch(ib, len(ops))
 		if !ok {
 			op = ""
 		}
@@ -229,7 +230,7 @@ func tokens(source io.Reader) (ts []token, e error) {
 					b = rns[i] == rn
 					return
 				}
-				ok, _ := bLnSrch(ib, len(rns))
+				ok, _ := alg.BLnSrch(ib, len(rns))
 				if ok {
 					if ident != "" {
 						ts, ident = append(ts, token{ident, true}), ""
@@ -268,6 +269,6 @@ func isBinary(t string) (ok bool) {
 		b = string(bs[i]) == t
 		return
 	}
-	ok, _ = bLnSrch(ib, len(bs))
+	ok, _ = alg.BLnSrch(ib, len(bs))
 	return
 }
