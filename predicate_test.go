@@ -352,7 +352,8 @@ func TestParse(t *testing.T) {
 			require.Equal(t, ps[i].pred, s)
 		} else {
 			t.Logf("%s → %s", ps[i].pred, e.Error())
-			require.Equal(t, ps[i].e.Error(), e.Error(), "At '%s'", ps[i].pred)
+			require.Equal(t, ps[i].e.Error(), e.Error(), "At '%s'",
+				ps[i].pred)
 		}
 	}
 	alg.Forall(inf, len(ps))

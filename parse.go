@@ -39,7 +39,7 @@ consequence = junction '⇐' junction {'⇐' junction}.
 junction = disjunction | conjunction | factor.
 disjunction = factor '∨' factor {'∨' factor}.
 conjunction = factor '∧' factor {'∧' factor}.
-factor =	[unaryOp] (identifier | '(' predicate ')').
+factor =	[unaryOp] (identifier | '(' predicate ')'| extension).
 unaryOp = '¬'.
 */
 
@@ -145,7 +145,7 @@ func notFound(op string) (e error) {
 	return
 }
 
-func parseFactor(ts []token, i int) (p *Predicate, n int, e error) {
+func parseFactor(ts []token, i int, ext parser) (p *Predicate, n int, e error) {
 	n = i
 	t := ts[n]
 	var neg *Predicate
@@ -168,6 +168,8 @@ func parseFactor(ts []token, i int) (p *Predicate, n int, e error) {
 			} else if e == nil {
 				e = noMatchPar()
 			}
+		} else if ext != nil {
+			p, n, e = ext(ts, i)
 		} else {
 			e = notRec(t.value)
 		}
@@ -215,7 +217,7 @@ type token struct {
 	isIdent bool
 }
 
-func tokens(source io.Reader) (ts []token, e error) {
+func tokens(source io.Reader, ss []scanner) (ts []token, e error) {
 	bs, e := ioutil.ReadAll(source)
 	if e == nil {
 		rd := bytes.NewReader(bs)
@@ -224,36 +226,51 @@ func tokens(source io.Reader) (ts []token, e error) {
 			var rn rune
 			rn, _, e = rd.ReadRune()
 			if e == nil {
-				rns := []rune{not, and, or, eq, neq, implies, follows,
-					opar, cpar}
 				ib := func(i int) (b bool) {
-					b = rns[i] == rn
+					ss[i](rn, unicode.IsSpace(rn))
 					return
 				}
-				ok, _ := alg.BLnSrch(ib, len(rns))
+				ok, _ := alg.BLnSrch(ib, len(ss))
 				if ok {
-					if ident != "" {
-						ts, ident = append(ts, token{ident, true}), ""
-					}
 					ts = append(ts, token{string(rn), false})
-				} else if unicode.IsLetter(rn) ||
-					(unicode.IsDigit(rn) && len(ident) != 0) {
-					ident = ident + string(rn)
-				} else if unicode.IsSpace(rn) {
-					if ident != "" {
-						ts, ident = append(ts, token{ident, true}), ""
-					}
 				} else {
 					e = notRec(string(rn))
 				}
+			} else if e == io.EOF {
+				// TODO
 			}
 		}
-		if e == io.EOF {
-			if ident != "" {
-				ts = append(ts, token{ident, true})
-			}
-			e = nil
+	}
+	return
+}
+
+type scanner func(rune, bool) (token, bool, bool)
+
+func identScan() (s scanner) {
+	var ident string
+	s = func(rn rune, end bool) (t token, cont, ok bool) {
+		if end {
+			t, ident, cont, ok = token{ident, true}, "", false, true
+		} else if unicode.IsLetter(rn) ||
+			(unicode.IsDigit(rn) && len(ident) != 0) {
+			ident, cont = ident+string(rn), true, true
+		} else {
+			cont, ok = false, false
 		}
+		return
+	}
+	return
+}
+
+func strScan(str string) (s scanner) {
+	ind := 0
+	s = func(rn rune, end bool) (t token, cont, ok bool) {
+		cont = ind != len(str)
+		ok = (cont && str[ind] == rn) == !end
+		if !cont && ok {
+			t = token{str}
+		}
+		return
 	}
 	return
 }
