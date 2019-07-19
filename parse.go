@@ -21,12 +21,12 @@
 package predicate
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
 	alg "github.com/lamg/algorithms"
 	"io"
-	"io/ioutil"
 	"unicode"
+	"unicode/utf8"
 )
 
 /*
@@ -43,8 +43,26 @@ factor =	[unaryOp] (identifier | '(' predicate ')'| extension).
 unaryOp = '¬'.
 */
 
+const (
+	OPar = "("
+	CPar = ")"
+)
+
 func Parse(source io.Reader) (p *Predicate, e error) {
-	ts, e := tokens(source)
+	ss := []scanner{
+		identScan,
+		spaceScan,
+		strScan(NotOp),
+		strScan(AndOp),
+		strScan(OrOp),
+		strScan(EquivalesOp),
+		strScan(NotEquivalesOp),
+		strScan(ImpliesOp),
+		strScan(FollowsOp),
+		strScan(OPar),
+		strScan(CPar),
+	}
+	ts, e := tokens(source, ss)
 	if e == nil {
 		var n int
 		p, n, e = parse(ts, 0)
@@ -62,13 +80,13 @@ func parse(ts []token, i int) (p *Predicate, n int, e error) {
 		ops := []string{EquivalesOp, NotEquivalesOp}
 		p, n, e = parseOp(ts, i, ops, parseTerm)
 		if e != nil && e.Error() == notFound(EquivalesOp).Error() {
-			p, n, e = parseTerm(ts, i)
+			p, n, e = parseTerm(ts, i, nil)
 		}
 	}
 	return
 }
 
-func parseTerm(ts []token, i int) (p *Predicate, n int,
+func parseTerm(ts []token, i int, ext parser) (p *Predicate, n int,
 	e error) {
 	ops := []string{ImpliesOp, FollowsOp}
 	ib := func(k int) (b bool) {
@@ -78,12 +96,12 @@ func parseTerm(ts []token, i int) (p *Predicate, n int,
 	}
 	ok, _ := alg.BLnSrch(ib, len(ops))
 	if !ok {
-		p, n, e = parseJunction(ts, i)
+		p, n, e = parseJunction(ts, i, ext)
 	}
 	return
 }
 
-func parseJunction(ts []token, i int) (p *Predicate, n int,
+func parseJunction(ts []token, i int, ext parser) (p *Predicate, n int,
 	e error) {
 	ops := []string{OrOp, AndOp}
 	ib := func(k int) (b bool) {
@@ -93,24 +111,26 @@ func parseJunction(ts []token, i int) (p *Predicate, n int,
 	}
 	ok, _ := alg.BLnSrch(ib, len(ops))
 	if !ok {
-		p, n, e = parseFactor(ts, i)
+		p, n, e = parseFactor(ts, i, ext)
 	}
 	return
 }
 
-type parser func([]token, int) (*Predicate, int, error)
+type parser func([]token, int, parser) (*Predicate, int, error)
 
 func parseOp(ts []token, i int, ops []string,
 	s parser) (p *Predicate, n int, e error) {
-	p, n, e = s(ts, i)
+	p, n, e = s(ts, i, nil)
 	op := moreOps(ts, ops, n)
 	if op == "" {
 		e = notFound(ops[0])
+	} else if n == len(ts)-1 {
+		e = malformedOp(op)
 	}
 	curr := p
 	for e == nil && op != "" {
 		var b *Predicate
-		b, n, e = s(ts, n+1)
+		b, n, e = s(ts, n+1, nil)
 		if e == nil {
 			old := &Predicate{
 				Operator: curr.Operator,
@@ -145,7 +165,8 @@ func notFound(op string) (e error) {
 	return
 }
 
-func parseFactor(ts []token, i int, ext parser) (p *Predicate, n int, e error) {
+func parseFactor(ts []token, i int,
+	ext parser) (p *Predicate, n int, e error) {
 	n = i
 	t := ts[n]
 	var neg *Predicate
@@ -161,15 +182,15 @@ func parseFactor(ts []token, i int, ext parser) (p *Predicate, n int, e error) {
 	if e == nil {
 		if t.isIdent {
 			np, n = &Predicate{Operator: Term, String: t.value}, n+1
-		} else if t.value == string(opar) {
+		} else if t.value == OPar {
 			np, n, e = parse(ts, n+1)
-			if n != len(ts) && ts[n].value == string(cpar) {
+			if n != len(ts) && ts[n].value == CPar {
 				e, n = nil, n+1
 			} else if e == nil {
 				e = noMatchPar()
 			}
 		} else if ext != nil {
-			p, n, e = ext(ts, i)
+			p, n, e = ext(ts, i, nil)
 		} else {
 			e = notRec(t.value)
 		}
@@ -186,7 +207,7 @@ func parseFactor(ts []token, i int, ext parser) (p *Predicate, n int, e error) {
 }
 
 func notRec(t string) (e error) {
-	e = fmt.Errorf("Not recognized token \"%s\"", t)
+	e = fmt.Errorf("Not recognized symbol \"%s\"", t)
 	return
 }
 
@@ -200,79 +221,97 @@ func noMatchPar() (e error) {
 	return
 }
 
-const (
-	not     = '¬'
-	and     = '∧'
-	or      = '∨'
-	eq      = '≡'
-	neq     = '≢'
-	implies = '⇒'
-	follows = '⇐'
-	opar    = '('
-	cpar    = ')'
-)
+func malformedOp(t string) (e error) {
+	e = fmt.Errorf("Malformed operation '%s'", t)
+	return
+}
 
 type token struct {
 	value   string
 	isIdent bool
 }
 
-func tokens(source io.Reader, ss []scanner) (ts []token, e error) {
-	bs, e := ioutil.ReadAll(source)
-	if e == nil {
-		rd := bytes.NewReader(bs)
-		var ident string
-		for e == nil {
-			var rn rune
+func tokens(source io.Reader, ss []scanner) (ts []token,
+	e error) {
+	var rn rune
+	var sc func(rune) (token, bool, bool)
+	var t token
+	rd := bufio.NewReader(source)
+	n, prod, read, search, scan := 0, false, true, false, false
+	for prod || scan || e == nil {
+		if read {
 			rn, _, e = rd.ReadRune()
-			if e == nil {
-				ib := func(i int) (b bool) {
-					ss[i](rn, unicode.IsSpace(rn))
-					return
-				}
-				ok, _ := alg.BLnSrch(ib, len(ss))
-				if ok {
-					ts = append(ts, token{string(rn), false})
-				} else {
-					e = notRec(string(rn))
-				}
-			} else if e == io.EOF {
-				// TODO
+			if e != nil {
+				rn = ' '
 			}
+			read, search = false, !scan
+		} else if search {
+			if n == len(ss) {
+				e = fmt.Errorf("Not recognized '%s'", string(rn))
+			} else {
+				sc, n, scan, search = ss[n](), n+1, true, false
+			}
+		} else if scan && !prod {
+			t, scan, prod = sc(rn)
+			search, read = !scan && !prod, scan
+		} else if prod {
+			if t.value != "" {
+				ts = append(ts, t)
+			}
+			n, prod, search = 0, false, true
 		}
+	}
+	if e == io.EOF {
+		e = nil
 	}
 	return
 }
 
-type scanner func(rune, bool) (token, bool, bool)
+type scanner func() func(rune) (token, bool, bool)
 
-func identScan() (s scanner) {
+func identScan() func(rune) (token, bool, bool) {
 	var ident string
-	s = func(rn rune, end bool) (t token, cont, ok bool) {
-		if end {
-			t, ident, cont, ok = token{ident, true}, "", false, true
-		} else if unicode.IsLetter(rn) ||
-			(unicode.IsDigit(rn) && len(ident) != 0) {
-			ident, cont = ident+string(rn), true, true
-		} else {
-			cont, ok = false, false
+	return func(rn rune) (t token, cont, prod bool) {
+		cont = unicode.IsLetter(rn) ||
+			(ident != "" && unicode.IsDigit(rn))
+		if cont {
+			ident = ident + string(rn)
+		} else if ident != "" {
+			t, prod = token{value: ident, isIdent: true}, true
 		}
 		return
+	}
+}
+
+func strScan(strScan string) (s scanner) {
+	s = func() func(rune) (token, bool, bool) {
+		str := strScan
+		return func(rn rune) (t token, cont, prod bool) {
+			sr, size := utf8.DecodeRuneInString(str)
+			cont = sr != utf8.RuneError && sr == rn
+			if cont {
+				str = str[size:]
+			}
+			prod = len(str) == 0
+			if prod {
+				t, cont = token{value: strScan}, true
+			}
+			return
+		}
 	}
 	return
 }
 
-func strScan(str string) (s scanner) {
-	ind := 0
-	s = func(rn rune, end bool) (t token, cont, ok bool) {
-		cont = ind != len(str)
-		ok = (cont && str[ind] == rn) == !end
-		if !cont && ok {
-			t = token{str}
+func spaceScan() func(rune) (token, bool, bool) {
+	start := false
+	return func(rn rune) (t token, cont, prod bool) {
+		cont = unicode.IsSpace(rn)
+		if cont {
+			start = true
 		}
+		prod = start && !cont
 		return
 	}
-	return
 }
 
 func isUnary(t string) (ok bool) {

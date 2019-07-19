@@ -33,13 +33,15 @@ type Predicate struct {
 }
 
 const (
-	NotOp          = "¬"
-	AndOp          = "∧"
-	OrOp           = "∨"
-	EquivalesOp    = "≡"
-	NotEquivalesOp = "≢"
-	ImpliesOp      = "⇒"
-	FollowsOp      = "⇐"
+	// the associated to each constant indicate how to type the
+	// character using Vim with the digraph feature
+	NotOp          = "¬" // C-k NO
+	AndOp          = "∧" // C-k AN
+	OrOp           = "∨" // C-k OR
+	EquivalesOp    = "≡" // C-k 3=
+	NotEquivalesOp = "≢" // C-k NE (custom def. `:digraph NE 8802`)
+	ImpliesOp      = "⇒" // C-k =>
+	FollowsOp      = "⇐" // C-k <=
 	Term           = "term"
 )
 
