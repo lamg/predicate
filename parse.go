@@ -63,6 +63,7 @@ func Parse(source io.Reader) (p *Predicate, e error) {
 		strScan(CPar),
 	}
 	ts, e := tokens(source, ss)
+	// TODO parser independent of *Predicate
 	if e == nil {
 		var n int
 		p, n, e = parse(ts, 0)
@@ -101,8 +102,8 @@ func parseTerm(ts []token, i int, ext parser) (p *Predicate, n int,
 	return
 }
 
-func parseJunction(ts []token, i int, ext parser) (p *Predicate, n int,
-	e error) {
+func parseJunction(ts []token, i int, ext parser) (p *Predicate,
+	n int, e error) {
 	ops := []string{OrOp, AndOp}
 	ib := func(k int) (b bool) {
 		p, n, e = parseOp(ts, i, []string{ops[k]}, parseFactor)
@@ -118,11 +119,17 @@ func parseJunction(ts []token, i int, ext parser) (p *Predicate, n int,
 
 type parser func([]token, int, parser) (*Predicate, int, error)
 
+type producer struct {
+	branch   func(op string, leaf bool)
+	up       func() bool
+	terminal func(value string)
+}
+
 func parseOp(ts []token, i int, ops []string,
 	s parser) (p *Predicate, n int, e error) {
 	p, n, e = s(ts, i, nil)
 	op := moreOps(ts, ops, n)
-	if op == "" {
+	if op == "" && e == nil {
 		e = notFound(ops[0])
 	} else if n == len(ts)-1 {
 		e = malformedOp(op)
@@ -227,8 +234,9 @@ func malformedOp(t string) (e error) {
 }
 
 type token struct {
-	value   string
-	isIdent bool
+	value    string
+	isIdent  bool
+	isNumber bool
 }
 
 func tokens(source io.Reader, ss []scanner) (ts []token,

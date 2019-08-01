@@ -30,6 +30,7 @@ type Predicate struct {
 	A        *Predicate `json:"a"`
 	B        *Predicate `json:"b"`
 	String   string     `json:"string"`
+	AltRef   int        `json:"-"`
 }
 
 const (

@@ -361,6 +361,11 @@ func TestScan(t *testing.T) {
 		identScan,
 		spaceScan,
 	}
+	testScan(t, ss, txt, tks)
+}
+
+func testScan(t *testing.T, ss []scanner, txt string,
+	tks []string) {
 	scanned, e := tokens(strings.NewReader(txt), ss)
 
 	require.NoError(t, e)
@@ -370,6 +375,7 @@ func TestScan(t *testing.T) {
 		t.Log(scanned[i])
 	}
 	alg.Forall(inf, len(tks))
+
 }
 
 func TestParse(t *testing.T) {
