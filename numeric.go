@@ -29,43 +29,11 @@ numeric_expression = product_chain {("+"|"-") product_chain}.
 product_chain = number {("×"|"÷") number}.
 */
 
-func parseNumeric(ns []*Numeric) parser {
-	return func(ts []token, i int,
-		ext parser) (p *Predicate, n int, e error) {
-		return
-	}
-}
-
 type Numeric struct {
 	Operator string
 	A        *Numeric
 	B        *Numeric
 	Value    string
-}
-
-func parseNumericExpr(ts []token, i int) (p *Numeric, n int,
-	e error) {
-	p, n, e = parseProduct(ts, i)
-	var op string
-	if n != len(ts) {
-		op = moreOps(ts, []string{SumOp, SubstractionOp})
-		if op == "" {
-			e = notFound(SumOp + " or " + SubstractionOp)
-		}
-	}
-	if e == nil {
-		if op == "" {
-
-		}
-	}
-	if e == nil {
-
-	}
-	return
-}
-
-func parseProduct(ts []token, i int) (p *Numeric, n int, e error) {
-	return
 }
 
 func numberScan() func(rune) (token, bool, bool) {
