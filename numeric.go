@@ -36,16 +36,16 @@ type Numeric struct {
 	Value    string
 }
 
-func numberScan() func(rune) (token, bool, bool) {
+func numberScan() func(rune) (*token, bool, bool) {
 	var val string
-	return func(rn rune) (t token, cont, prod bool) {
+	return func(rn rune) (t *token, cont, prod bool) {
 		cont = unicode.IsDigit(rn)
 		if cont {
 			val = val + string(rn)
 		}
 		prod = val != "" && !cont
 		if prod {
-			t = token{value: val, isNumber: true}
+			t = &token{value: val, isNumber: true}
 		}
 		return
 	}

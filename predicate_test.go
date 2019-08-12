@@ -323,7 +323,7 @@ func TestStrScan(t *testing.T) {
 func TestIdentScan(t *testing.T) {
 	ids := identScan()
 	rs := []rune{'a', 'b', 'c', '0'}
-	var tk token
+	var tk *token
 	var cont, prod bool
 	inf := func(i int) {
 		_, cont, prod = ids(rs[i])
@@ -340,42 +340,6 @@ func TestIdentScan(t *testing.T) {
 	_, cont, prod = ids0(' ')
 	require.False(t, cont)
 	require.False(t, prod)
-}
-
-func TestScan(t *testing.T) {
-	txt := "true¬∧∨≡≢⇒⇐()bla9   x3  (Abla)true"
-	tks := []string{"true",
-		NotOp, AndOp, OrOp, EquivalesOp, NotEquivalesOp,
-		ImpliesOp, FollowsOp, OPar, CPar, "bla9", "x3",
-		"(", "Abla", ")", "true"}
-	ss := []scanner{
-		strScan(NotOp),
-		strScan(AndOp),
-		strScan(OrOp),
-		strScan(EquivalesOp),
-		strScan(NotEquivalesOp),
-		strScan(ImpliesOp),
-		strScan(FollowsOp),
-		strScan(OPar),
-		strScan(CPar),
-		identScan,
-		spaceScan,
-	}
-	testScan(t, ss, txt, tks)
-}
-
-func testScan(t *testing.T, ss []scanner, txt string,
-	tks []string) {
-	scanned, e := tokens(strings.NewReader(txt), ss)
-
-	require.NoError(t, e)
-	require.Equal(t, len(tks), len(scanned))
-	inf := func(i int) {
-		require.Equal(t, tks[i], scanned[i].value)
-		t.Log(scanned[i])
-	}
-	alg.Forall(inf, len(tks))
-
 }
 
 func TestParse(t *testing.T) {

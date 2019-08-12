@@ -40,7 +40,7 @@ const (
 	AndOp          = "∧" // C-k AN
 	OrOp           = "∨" // C-k OR
 	EquivalesOp    = "≡" // C-k 3=
-	NotEquivalesOp = "≢" // C-k NE (custom def. `:digraph NE 8802`)
+	NotEquivalesOp = "≢" // C-k ne (custom def. `:digraph ne 8802`)
 	ImpliesOp      = "⇒" // C-k =>
 	FollowsOp      = "⇐" // C-k <=
 	Term           = "term"
