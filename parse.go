@@ -84,15 +84,15 @@ type token struct {
 func tokens(source io.Reader, ss []scanner) (
 	tf func() (*token, error)) {
 	rd := bufio.NewReader(source)
+	var rn rune
+	var sc func(rune) (*token, bool, bool)
+	n, end, read, search, scan := 0, false, true, false, false
 	tf = func() (t *token, e error) {
-		var rn rune
-		var sc func(rune) (*token, bool, bool)
-		n, end, read, search, scan := 0, false, true, false, false
 		for !end {
 			if read {
 				rn, _, e = rd.ReadRune()
 				if e == io.EOF {
-					rn, e = 0x3, nil
+					rn, e = 0x3, nil // 0x3 is the end of file character
 				}
 				read, search = false, !scan
 			} else if search {
@@ -102,12 +102,13 @@ func tokens(source io.Reader, ss []scanner) (
 					sc, n, search = ss[n](), n+1, false
 				}
 			} else if !search {
-				t, scan, end = sc(rn)
-				println("rune: ", string(rn), "end:", end, "t = nil:", t == nil)
-				search, read, end = !scan, scan, end && t.value != ""
+				t, read, end = sc(rn)
+				search = !read || end
+				scan = !search
 			}
 			end = end || e != nil
 		}
+		n, end = 0, 0x3 == rn || e != nil
 		return
 	}
 	return
@@ -157,7 +158,7 @@ func spaceScan() func(rune) (*token, bool, bool) {
 		}
 		prod = start && !cont
 		if prod {
-			t = new(token)
+			t, start = new(token), false
 		}
 		return
 	}

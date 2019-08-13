@@ -11,7 +11,7 @@ func TestScan(t *testing.T) {
 	txt := "true¬∧∨≡≢⇒⇐()bla9   x3  (Abla)true"
 	tks := []string{"true",
 		NotOp, AndOp, OrOp, EquivalesOp, NotEquivalesOp,
-		ImpliesOp, FollowsOp, OPar, CPar, "bla9", "x3",
+		ImpliesOp, FollowsOp, OPar, CPar, "bla9", "", "x3", "",
 		"(", "Abla", ")", "true"}
 	ss := []scanner{
 		strScan(NotOp),
@@ -36,7 +36,6 @@ func testScan(t *testing.T, ss []scanner, txt string,
 	inf := func(i int) {
 		tk, e := scan()
 		require.NoError(t, e)
-		println("value:", tk.value)
 		require.Equal(t, tks[i], tk.value)
 		t.Log(tk)
 	}
