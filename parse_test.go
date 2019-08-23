@@ -1,8 +1,10 @@
 package predicate
 
 import (
+	"fmt"
 	alg "github.com/lamg/algorithms"
 	"github.com/stretchr/testify/require"
+	"io"
 	"strings"
 	"testing"
 )
@@ -35,25 +37,61 @@ func testScan(t *testing.T, ss []scanner, txt string,
 
 	inf := func(i int) {
 		tk, e := scan()
-		require.NoError(t, e)
-		require.Equal(t, tks[i], tk.value)
-		t.Log(tk)
+		if e != io.EOF {
+			require.NoError(t, e)
+			require.Equal(t, tks[i], tk.value)
+			t.Log(tk)
+		}
 	}
 	alg.Forall(inf, len(tks))
 }
 
-func TestPredicateSym(t *testing.T) {
-	ps, i := []Predicate{
-		{Operator: Term, String: TrueStr},
-		{Operator: Term, String: FalseStr},
-	}, 0
-	curr := func() (p *Predicate) {
-		p, i = &ps[i], i+1
+func TestParseOp(t *testing.T) {
+	txt := "pepe ∧ false ∧ coco"
+	ss := []scanner{
+		spaceScan,
+		identScan,
+		strScan(AndOp),
+	}
+	stp := &scanStatePreserver{
+		tkf: tokens(strings.NewReader(txt), ss),
+	}
+	root := new(Predicate)
+	curr := root
+	sym := func() (e error) {
+		tk, e := stp.token()
+		if e == nil {
+			if tk.isIdent {
+				curr.B = &Predicate{Operator: Term, String: tk.value}
+				curr = curr.B
+			} else {
+				e = fmt.Errorf("Expecting identifier, got '%s'", tk.value)
+			}
+		}
 		return
 	}
-	r, b := predicateSym(curr)
-	b(AndOp)
-	p := r()
-	expected := &Predicate{Operator: AndOp, A: True(), B: False()}
-	require.Equal(t, expected, p)
+	branch := func(op string) {
+		old := &Predicate{
+			Operator: curr.Operator,
+			A:        curr.A,
+			B:        curr.B,
+			String:   curr.String,
+		}
+		curr.Operator, curr.A, curr.String = op, old, ""
+	}
+	op := func() (string, error) {
+		return moreOps(stp, []string{AndOp})
+	}
+	e := parseOp(op, sym, branch)
+	require.NoError(t, e)
+	expected := &Predicate{
+		Operator: AndOp,
+		A:        &Predicate{Operator: Term, String: "pepe"},
+		B: &Predicate{
+			Operator: AndOp,
+			A:        False(),
+			B:        &Predicate{Operator: Term, String: "coco"},
+		},
+	}
+	require.Equal(t, expected, root.B)
 }
