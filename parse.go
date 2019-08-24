@@ -9,14 +9,16 @@ import (
 	"unicode/utf8"
 )
 
-func optional(back func(), sym func() error) {
+func optional(save, back func(), sym func() error) {
+	save()
 	e := sym()
 	if e != nil {
 		back()
 	}
 }
 
-func alternative(back func(), syms []func() error) (e error) {
+func alternative(save, back func(), syms []func() error) (e error) {
+	save()
 	bf := func(i int) (b bool) {
 		e = syms[i]()
 		b = e == nil
@@ -25,7 +27,10 @@ func alternative(back func(), syms []func() error) (e error) {
 		}
 		return
 	}
-	alg.BLnSrch(bf, len(syms))
+	ok, _ := alg.BLnSrch(bf, len(syms))
+	if !ok {
+		e = fmt.Errorf("Error parsing alternative")
+	}
 	return
 }
 

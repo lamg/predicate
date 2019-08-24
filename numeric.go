@@ -26,7 +26,8 @@ at_most_element = (">"|"≥") numeric_expression.
 at_least_chain = at_least_element {at_least_element}.
 at_least_element = ("<"|"≤") numeric_expression.
 numeric_expression = product_chain {("+"|"-") product_chain}.
-product_chain = number {("×"|"÷") number}.
+product_chain = numeric {("×"|"÷") numeric}.
+numeric = identifier | number | '(' predicate ')'.
 */
 
 type Numeric struct {
