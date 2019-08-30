@@ -348,7 +348,7 @@ func TestParse(t *testing.T) {
 		e    error
 	}{
 		{"true ∧ false", nil},
-		{"true ∧", notRec("∧")},
+		{"true ∧", errorAlt()},
 		{"¬A", nil},
 		{"¬A ∧ (B ∨ C)", nil},
 		{"A ∨ ¬(B ∧ C)", nil},
@@ -363,6 +363,9 @@ func TestParse(t *testing.T) {
 	}
 	inf := func(i int) {
 		np, e := Parse(strings.NewReader(ps[i].pred))
+		if ps[i].e == nil {
+			t.Log("log:", String(np))
+		}
 		require.Equal(t, e == nil, ps[i].e == nil,
 			"At %d: %s %v", i, ps[i].pred, e)
 		if e == nil {

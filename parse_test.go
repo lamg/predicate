@@ -79,7 +79,7 @@ func TestParseOp(t *testing.T) {
 		}
 		curr.Operator, curr.A, curr.String = op, old, ""
 	}
-	op := func() (string, error) {
+	op := func() (string, bool, error) {
 		return moreOps(stp, []string{AndOp})
 	}
 	e := parseOp(op, sym, branch)
@@ -94,4 +94,19 @@ func TestParseOp(t *testing.T) {
 		},
 	}
 	require.Equal(t, expected, root.B)
+}
+
+func TestFuncPointer(t *testing.T) {
+	var f func()
+	g := func() {
+		f()
+	}
+	a := false
+	f = func() { a = true }
+	g()
+	require.True(t, a)
+}
+
+func TestConstructTree(t *testing.T) {
+
 }

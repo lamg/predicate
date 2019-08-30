@@ -273,12 +273,12 @@ func String(p *Predicate) (r string) {
 		r = p.String
 	} else if p.Operator == NotOp {
 		var sfm string
-		if p.A.Operator == Term {
+		if p.B.Operator == Term {
 			sfm = "%s"
 		} else {
 			sfm = "(%s)"
 		}
-		r = fmt.Sprintf("%s"+sfm, NotOp, String(p.A))
+		r = fmt.Sprintf("%s"+sfm, NotOp, String(p.B))
 	} else {
 		r = fmt.Sprintf(
 			format(p.Operator, p.A.Operator)+" %s "+

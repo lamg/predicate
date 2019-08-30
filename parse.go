@@ -9,15 +9,7 @@ import (
 	"unicode/utf8"
 )
 
-func optional(save, back func(), sym func() error) {
-	save()
-	e := sym()
-	if e != nil {
-		back()
-	}
-}
-
-func alternative(save, back func(), syms []func() error) (e error) {
+func alternative(save, back, syms []func() error) (e error) {
 	save()
 	bf := func(i int) (b bool) {
 		e = syms[i]()
@@ -29,40 +21,32 @@ func alternative(save, back func(), syms []func() error) (e error) {
 	}
 	ok, _ := alg.BLnSrch(bf, len(syms))
 	if !ok {
-		e = fmt.Errorf("Error parsing alternative")
-	}
-	return
-}
-
-func parseOp(op func() (string, error), sym func() error,
-	branch func(string)) (e error) {
-	e = sym()
-	o, opFound := "", false
-	for e == nil {
-		if opFound {
-			branch(o)
-			e, opFound = sym(), false
-		} else {
-			o, e = op()
-			opFound = e == nil
-		}
-	}
-	if !opFound && e == io.EOF {
+		e = errorAlt()
+	} else {
 		e = nil
 	}
 	return
 }
 
-func opt(e error) (s string) {
-	if e != nil {
-		s = e.Error()
+func parseOp(op func() (string, bool, error), sym func() error,
+	branch func(string)) (e error) {
+	e = sym()
+	o, end := "", false
+	for e == nil && !end {
+		if o != "" {
+			println("branch:", o)
+			branch(o)
+			e, o = sym(), ""
+		} else {
+			o, end, e = op()
+		}
 	}
 	return
 }
 
-func moreOps(s *scanStatePreserver, ops []string) (op string,
-	e error) {
-	s.saveState()
+func moreOps(s *scanStatePreserver, ops []string) (
+	op string, end bool, e error,
+) {
 	t, e := s.token()
 	if e == nil {
 		ib := func(i int) bool { return ops[i] == t.value }
@@ -70,8 +54,12 @@ func moreOps(s *scanStatePreserver, ops []string) (op string,
 		if ok {
 			op = t.value
 		} else {
-			s.backToSaved()
+			e = fmt.Errorf("Not found operator")
 		}
+	}
+	end = e != nil || t.value == CPar
+	if e == io.EOF {
+		e = nil
 	}
 	return
 }
@@ -100,7 +88,7 @@ func (s *scanStatePreserver) token() (t *token, e error) {
 }
 
 func (s *scanStatePreserver) saveState() {
-	s.save, s.stored = true, make([]*token, 0)
+	s.save, s.stored, s.restore = true, make([]*token, 0), false
 }
 
 func (s *scanStatePreserver) backToSaved() {
@@ -115,6 +103,10 @@ const (
 func notRec(t string) (e error) {
 	e = fmt.Errorf("Not recognized symbol \"%s\"", t)
 	return
+}
+
+func errorAlt() (e error) {
+	return fmt.Errorf("Error parsing alternative")
 }
 
 func unexpEnd() (e error) {

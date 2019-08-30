@@ -9,10 +9,10 @@ import (
 Grammar in EBNF syntax
 
 predicate = term {('≡'|'≢') term}.
-term = implication | consequence | junction.
+term = implication | consequence.
 implication = junction {'⇒' junction}.
 consequence = junction {'⇐' junction}.
-junction = disjunction | conjunction | factor.
+junction = disjunction | conjunction.
 disjunction = factor {'∨' factor}.
 conjunction = factor {'∧' factor}.
 factor =	[unaryOp] (identifier | '(' predicate ')').
@@ -21,8 +21,6 @@ unaryOp = '¬'.
 */
 
 func Parse(rd io.Reader) (p *Predicate, e error) {
-	root := new(Predicate)
-	curr := root
 	ss := []scanner{
 		identScan,
 		spaceScan,
@@ -36,41 +34,42 @@ func Parse(rd io.Reader) (p *Predicate, e error) {
 		strScan(CPar),
 	}
 
-	insert := func(p *Predicate) { curr.B = p; curr = curr.B }
-
-	stp := &scanStatePreserver{tkf: tokens(rd, ss)}
-	branch := func(op string) {
-		old := &Predicate{
-			Operator: curr.Operator,
-			A:        curr.A,
-			B:        curr.B,
-			String:   curr.String,
-		}
-		curr.Operator, curr.A, curr.String = op, old, ""
+	st := &predState{
+		stp:  &scanStatePreserver{tkf: tokens(rd, ss)},
+		root: new(Predicate),
 	}
-	ops := operators0(stp, branch)
-	alt := alt0(stp)
-	var predicate func() error
+	st.curr = st.root
+	println("****")
 
-	factor := factor0(stp, predicate, insert)
-	conjunction := ops(factor, AndOp)
-	disjunction := ops(factor, OrOp)
-	junction := alt(disjunction, conjunction, factor)
+	e = st.predicate()
+	p = st.root.B
+	if len(st.stp.stored) != 0 {
+		println("value:", st.stp.stored[len(st.stp.stored)-1].value)
+	}
+	return
+}
 
-	implication := ops(junction, ImpliesOp)
-	consequence := ops(junction, FollowsOp)
-	term := alt(implication, consequence, junction)
-	predicate = ops(term, EquivalesOp, NotEquivalesOp)
+type predState struct {
+	stp  *scanStatePreserver
+	root *Predicate
+	curr []*Predicate
+}
 
-	e = predicate()
-	p = root.B
+func (s *predState) predicate() (e error) {
+	factor := factor0(s.stp, s.predicate, s.insert)
+	conjunction := s.ops(factor, AndOp)
+	disjunction := s.ops(factor, OrOp)
+	junction := s.alt(disjunction, conjunction)
+	implication := s.ops(junction, ImpliesOp)
+	consequence := s.ops(junction, FollowsOp)
+	term := s.alt(implication, consequence)
+	e = s.ops(term, EquivalesOp, NotEquivalesOp)()
 	return
 }
 
 func factor0(stp *scanStatePreserver, predicate func() error,
 	insert func(*Predicate)) func() error {
 	return func() (e error) {
-		stp.saveState()
 		t, e := stp.token()
 		if e == nil {
 			if t.value == NotOp {
@@ -97,22 +96,45 @@ func factor0(stp *scanStatePreserver, predicate func() error,
 		return
 	}
 }
+func (s *predState) insert(p *Predicate) {
+	s.curr = append(s.curr, p)
+}
 
-func operators0(s *scanStatePreserver, branch func(string)) func(func() error, ...string) func() error {
-	return func(sym func() error, ops ...string) func() error {
-		ms := func() (string, error) { return moreOps(s, ops) }
-		return func() error { return parseOp(ms, sym, branch) }
+func (s *predState) ops(f func() error,
+	os ...string) func() error {
+	ms := func() (string, bool, error) {
+		return moreOps(s.stp, os)
+	}
+	return func() error { return parseOp(ms, f, s.branch) }
+}
+
+func (s *predState) branch(op string) {
+
+	old := &Predicate{
+		Operator: s.curr.Operator,
+		A:        s.curr.A,
+		B:        s.curr.B,
+		String:   s.curr.String,
+	}
+	s.curr.Operator, s.curr.A, s.curr.String = op, old, ""
+
+}
+
+func (s *predState) save() {
+	s.stp.saveState()
+}
+
+func (s *predState) back() {
+	s.stp.backToSaved()
+	if len(s.curr) != 0 {
+		s.curr = s.curr[:len(s.curr)-1]
+	} else {
+		panic("No available subtrees")
 	}
 }
 
-func alt0(s *scanStatePreserver) func(...func() error) func() error {
-	return func(fs ...func() error) func() error {
-		return func() error {
-			return alternative(
-				s.saveState,
-				s.backToSaved,
-				fs,
-			)
-		}
+func (s *predState) alt(fs ...func() error) func() error {
+	return func() error {
+		return alternative(s.save, s.back, fs)
 	}
 }
