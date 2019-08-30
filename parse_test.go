@@ -1,7 +1,6 @@
 package predicate
 
 import (
-	"fmt"
 	alg "github.com/lamg/algorithms"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -46,56 +45,6 @@ func testScan(t *testing.T, ss []scanner, txt string,
 	alg.Forall(inf, len(tks))
 }
 
-func TestParseOp(t *testing.T) {
-	txt := "pepe ∧ false ∧ coco"
-	ss := []scanner{
-		spaceScan,
-		identScan,
-		strScan(AndOp),
-	}
-	stp := &scanStatePreserver{
-		tkf: tokens(strings.NewReader(txt), ss),
-	}
-	root := new(Predicate)
-	curr := root
-	sym := func() (e error) {
-		tk, e := stp.token()
-		if e == nil {
-			if tk.isIdent {
-				curr.B = &Predicate{Operator: Term, String: tk.value}
-				curr = curr.B
-			} else {
-				e = fmt.Errorf("Expecting identifier, got '%s'", tk.value)
-			}
-		}
-		return
-	}
-	branch := func(op string) {
-		old := &Predicate{
-			Operator: curr.Operator,
-			A:        curr.A,
-			B:        curr.B,
-			String:   curr.String,
-		}
-		curr.Operator, curr.A, curr.String = op, old, ""
-	}
-	op := func() (string, bool, error) {
-		return moreOps(stp, []string{AndOp})
-	}
-	e := parseOp(op, sym, branch)
-	require.NoError(t, e)
-	expected := &Predicate{
-		Operator: AndOp,
-		A:        &Predicate{Operator: Term, String: "pepe"},
-		B: &Predicate{
-			Operator: AndOp,
-			A:        False(),
-			B:        &Predicate{Operator: Term, String: "coco"},
-		},
-	}
-	require.Equal(t, expected, root.B)
-}
-
 func TestFuncPointer(t *testing.T) {
 	var f func()
 	g := func() {
@@ -107,6 +56,69 @@ func TestFuncPointer(t *testing.T) {
 	require.True(t, a)
 }
 
-func TestConstructTree(t *testing.T) {
+func TestStrScan(t *testing.T) {
+	ns := strScan(NotOp)()
+	tk, cont, prod := ns('¬')
+	require.True(t, prod)
+	require.True(t, cont)
+	require.Equal(t, "¬", tk.value)
+}
 
+func TestIdentScan(t *testing.T) {
+	ids := identScan()
+	rs := []rune{'a', 'b', 'c', '0'}
+	var tk *token
+	var cont, prod bool
+	inf := func(i int) {
+		_, cont, prod = ids(rs[i])
+		require.True(t, cont)
+		require.False(t, prod)
+	}
+	alg.Forall(inf, len(rs))
+	tk, cont, prod = ids(' ')
+	require.False(t, cont)
+	require.True(t, prod)
+	require.Equal(t, "abc0", tk.value)
+
+	ids0 := identScan()
+	_, cont, prod = ids0(' ')
+	require.False(t, cont)
+	require.False(t, prod)
+}
+
+func TestParse(t *testing.T) {
+	ps := []struct {
+		pred string
+		e    error
+	}{
+		//{"true ∧ false", nil},
+		//{"true ∧", errorAlt("term", errorAlt("junction",
+		// notRec("\x03")))},
+		//{"¬A", nil},
+		{"¬A ∧ (B ∨ C)", nil},
+		{"A ∨ ¬(B ∧ C)", nil},
+		{"A ≡ B ≡ ¬C ⇒ D", nil},
+		{"A ≡ B ≡ ¬C ⇐ D", nil},
+		{"A ≡ B ≡ ¬(C ⇐ D)", nil},
+		{"A ∨ B ∨ C", nil},
+		{"A ∨ B ∧ C", nil},
+		{"A ⇒ B ⇐ C", nil},
+		{"A ∨ (B ∧ C)", nil},
+		{"A ⇒ (B ⇐ C)", nil},
+	}
+	inf := func(i int) {
+		np, e := Parse(strings.NewReader(ps[i].pred))
+		require.Equal(t, e == nil, ps[i].e == nil,
+			"At %d: %s %v", i, ps[i].pred, e)
+		if e == nil {
+			s := String(np)
+			t.Logf("'%s'", s)
+			require.Equal(t, ps[i].pred, s)
+		} else {
+			t.Logf("'%s' → %s", ps[i].pred, e.Error())
+			require.Equal(t, ps[i].e.Error(), e.Error(), "At '%s'",
+				ps[i].pred)
+		}
+	}
+	alg.Forall(inf, len(ps))
 }
