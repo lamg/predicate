@@ -13,15 +13,10 @@ import (
 Grammar in EBNF syntax
 
 predicate = term {('≡'|'≢') term}.
-term = implication | consequence.
-implication = junction {'⇒' junction}.
-consequence = junction {'⇐' junction}.
-junction = disjunction | conjunction.
-disjunction = factor {'∨' factor}.
-conjunction = factor {'∧' factor}.
+term = junction ({'⇒' junction} | {'⇐' junction}).
+junction = factor ({'∨' factor} | {'∧' factor}).
 factor =	[unaryOp] (identifier | '(' predicate ')').
 unaryOp = '¬'.
-
 */
 
 func Parse(rd io.Reader) (p *Predicate, e error) {
@@ -67,11 +62,10 @@ func (s *predState) alternative(name string,
 	return func() (p *Predicate, e error) {
 		s.save()
 		bf := func(i int) (b bool) {
-			if !equalErr(e, notRec(string(0x3))) {
-				p, e = xs[i]()
-				if e != nil {
-					s.back()
-				}
+			p, e = xs[i]()
+			if e != nil {
+				s.back()
+				println("back:", s.curr)
 			}
 			b = e == nil
 			return
@@ -80,9 +74,9 @@ func (s *predState) alternative(name string,
 		if !ok {
 			e = errorAlt(name, e)
 		} else {
-			s.drop()
 			e = nil
 		}
+		s.drop()
 		return
 	}
 }
@@ -93,20 +87,25 @@ func (s *predState) parseOp(sym func() (*Predicate, error),
 		p, e = sym()
 		curr := p
 		o, end := "", false
-		for e == nil && !end {
+		for !end {
 			if o != "" {
 				var b *Predicate
 				b, e = sym()
-				fmt.Println(e)
 				if e == nil {
-					p = &Predicate{Operator: o, A: curr, B: b}
+					old := &Predicate{
+						Operator: curr.Operator,
+						A:        curr.A,
+						B:        curr.B,
+						String:   curr.String,
+					}
+					curr.Operator, curr.A, curr.B = o, old, b
+					curr = curr.B
 				}
-				// TODO predicate chain
 				o = ""
 			} else {
 				// first time it could fail
-				o, end, e = moreOps(s.scanStatePreserver, ops)
-				fmt.Println(end, o, e)
+				o, e = moreOps(s.scanStatePreserver, ops)
+				end = o == "" || e != nil
 			}
 		}
 		return
@@ -114,7 +113,7 @@ func (s *predState) parseOp(sym func() (*Predicate, error),
 }
 
 func moreOps(s *scanStatePreserver, ops []string) (
-	op string, end bool, e error,
+	op string, e error,
 ) {
 	t, e := s.token()
 	if e == nil {
@@ -122,13 +121,9 @@ func moreOps(s *scanStatePreserver, ops []string) (
 		ok, _ := alg.BLnSrch(ib, len(ops))
 		if ok {
 			op = t.value
-		} else {
+		} else if !(t.value == CPar || t.value == string(eof)) {
 			e = fmt.Errorf("Not found operator %s in %v", t.value, ops)
 		}
-	}
-	end = e != nil || t.value == CPar
-	if e == io.EOF || t.value == CPar {
-		e = nil
 	}
 	return
 }
@@ -203,8 +198,6 @@ func (s *scanStatePreserver) back() {
 
 func (s *scanStatePreserver) drop() {
 	s.saved = s.saved[:len(s.saved)-1]
-	s.back()
-	println("back:", s.stored[s.curr].value)
 }
 
 const (
@@ -227,24 +220,30 @@ type token struct {
 	isNumber bool
 }
 
+const (
+	// 0x3 is the end of file character
+	eof = 0x3
+)
+
 func tokens(source io.Reader, ss []scanner) (
 	tf func() (*token, error)) {
 	rd := bufio.NewReader(source)
+	ss = append(ss, eofScan)
 	var rn rune
 	var sc func(rune) (*token, bool, bool)
 	n, end, read, search, scan := 0, false, true, false, false
-	var err error
 	tf = func() (t *token, e error) {
 		if end {
-			e = err
+			e = io.EOF
 		}
 		for !end {
 			if read {
 				rn, _, e = rd.ReadRune()
-				if e == io.EOF {
-					rn = 0x3 // 0x3 is the end of file character
-				} else if e != nil {
-					end = true
+				if e != nil {
+					rn = eof
+					if e == io.EOF {
+						e = nil
+					}
 				}
 				read, search = false, !scan
 			} else if search {
@@ -259,10 +258,7 @@ func tokens(source io.Reader, ss []scanner) (
 				scan = !search
 			}
 		}
-		n, end, err = 0, e != nil, e
-		if t != nil {
-			e = nil
-		}
+		n, end = 0, e != nil || t.value == string(eof)
 		return
 	}
 	return
@@ -323,6 +319,15 @@ func spaceScan() func(rune) (*token, bool, bool) {
 		prod = start && !cont
 		if prod {
 			t, start = new(token), false
+		}
+		return
+	}
+}
+
+func eofScan() func(rune) (*token, bool, bool) {
+	return func(r rune) (t *token, cont, prod bool) {
+		if r == eof {
+			t, prod = &token{value: string(r)}, true
 		}
 		return
 	}

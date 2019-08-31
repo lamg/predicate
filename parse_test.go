@@ -3,7 +3,6 @@ package predicate
 import (
 	alg "github.com/lamg/algorithms"
 	"github.com/stretchr/testify/require"
-	"io"
 	"strings"
 	"testing"
 )
@@ -36,11 +35,9 @@ func testScan(t *testing.T, ss []scanner, txt string,
 
 	inf := func(i int) {
 		tk, e := scan()
-		if e != io.EOF {
-			require.NoError(t, e)
-			require.Equal(t, tks[i], tk.value)
-			t.Log(tk)
-		}
+		require.NoError(t, e)
+		require.Equal(t, tks[i], tk.value)
+		t.Log(tk)
 	}
 	alg.Forall(inf, len(tks))
 }
@@ -86,15 +83,47 @@ func TestIdentScan(t *testing.T) {
 	require.False(t, prod)
 }
 
+func TestParseOp(t *testing.T) {
+	ps := []string{"a", "¬a", "a ∧ b", "a ∧ b ∧ ¬c ∧ d"}
+	ss := []scanner{spaceScan, identScan, strScan(AndOp),
+		strScan(NotOp)}
+	inf := func(i int) {
+		rd := strings.NewReader(ps[i])
+		st := &predState{&scanStatePreserver{tkf: tokens(rd, ss)}}
+		p, e := st.parseOp(st.factor(), AndOp)()
+		require.NoError(t, e, "At %d", i)
+		require.Equal(t, ps[i], String(p), "At %d", i)
+	}
+	alg.Forall(inf, len(ps))
+}
+
+func TestParseAlternative(t *testing.T) {
+	ps := []string{"a ∧ (b ∨ c)"}
+	ss := []scanner{spaceScan, identScan, strScan(AndOp),
+		strScan(NotOp), strScan(OrOp)}
+
+	inf := func(i int) {
+		rd := strings.NewReader(ps[i])
+		s := &predState{&scanStatePreserver{tkf: tokens(rd, ss)}}
+		factor := s.factor()
+		conjunction := s.parseOp(factor, AndOp)
+		disjunction := s.parseOp(factor, OrOp)
+		p, e := s.alternative("junction", disjunction, conjunction)()
+		require.NoError(t, e)
+		require.Equal(t, ps[i], String(p))
+	}
+	alg.Forall(inf, len(ps))
+}
+
 func TestParse(t *testing.T) {
 	ps := []struct {
 		pred string
 		e    error
 	}{
-		//{"true ∧ false", nil},
-		//{"true ∧", errorAlt("term", errorAlt("junction",
-		// notRec("\x03")))},
-		//{"¬A", nil},
+		{"true ∧ false", nil},
+		{"true ∧", errorAlt("term", errorAlt("junction",
+			notRec("\x03")))},
+		{"¬A", nil},
 		{"¬A ∧ (B ∨ C)", nil},
 		{"A ∨ ¬(B ∧ C)", nil},
 		{"A ≡ B ≡ ¬C ⇒ D", nil},
