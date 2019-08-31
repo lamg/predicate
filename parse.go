@@ -1,3 +1,23 @@
+// Copyright © 2019 Luis Ángel Méndez Gort
+
+// This file is part of Predicate.
+
+// Predicate is free software: you can redistribute it and/or
+// modify it under the terms of the GNU Lesser General
+// Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your
+// option) any later version.
+
+// Predicate is distributed in the hope that it will be
+// useful, but WITHOUT ANY WARRANTY; without even the
+// implied warranty of MERCHANTABILITY or FITNESS FOR A
+// PARTICULAR PURPOSE. See the GNU Lesser General Public
+// License for more details.
+
+// You should have received a copy of the GNU Lesser General
+// Public License along with Predicate.  If not, see
+// <https://www.gnu.org/licenses/>.
+
 package predicate
 
 import (
@@ -29,66 +49,58 @@ func Parse(rd io.Reader) (p *Predicate, e error) {
 		strScan(EquivalesOp),
 		strScan(NotEquivalesOp),
 		strScan(ImpliesOp),
+		strScan(FollowsOp),
 		strScan(OPar),
 		strScan(CPar),
 	}
 
 	st := &predState{
-		&scanStatePreserver{tkf: tokens(rd, ss)},
+		tkf: tokens(rd, ss),
 	}
 
 	p, e = st.predicate()
+	if e == nil && st.token.value != string(eof) {
+		e = errUnkChar(st.token.value)
+	}
 	return
 }
 
 type predState struct {
-	*scanStatePreserver
+	tkf   func() (*token, error)
+	token *token
+}
+
+func (s *predState) next() (e error) {
+	s.token, e = s.tkf()
+	if e == nil && s.token.value == "" {
+		s.token, e = s.tkf()
+	}
+	return
 }
 
 func (s *predState) predicate() (p *Predicate, e error) {
 	factor := s.factor()
-	conjunction := s.parseOp(factor, AndOp)
-	disjunction := s.parseOp(factor, OrOp)
-	junction := s.alternative("junction", disjunction, conjunction)
-	implication := s.parseOp(junction, ImpliesOp)
-	consequence := s.parseOp(junction, FollowsOp)
-	term := s.alternative("term", implication, consequence)
-	p, e = s.parseOp(term, EquivalesOp, NotEquivalesOp)()
+	junction := s.parseOp("junction", factor, false, OrOp, AndOp)
+	term := s.parseOp("term", junction, false, ImpliesOp, FollowsOp)
+	p, e = s.parseOp("predicate", term, true, EquivalesOp, NotEquivalesOp)()
 	return
 }
 
-func (s *predState) alternative(name string,
-	xs ...func() (*Predicate, error)) func() (*Predicate, error) {
-	return func() (p *Predicate, e error) {
-		s.save()
-		bf := func(i int) (b bool) {
-			p, e = xs[i]()
-			if e != nil {
-				s.back()
-				println("back:", s.curr)
-			}
-			b = e == nil
-			return
-		}
-		ok, _ := alg.BLnSrch(bf, len(xs))
-		if !ok {
-			e = errorAlt(name, e)
-		} else {
-			e = nil
-		}
-		s.drop()
-		return
-	}
-}
-
-func (s *predState) parseOp(sym func() (*Predicate, error),
-	ops ...string) func() (*Predicate, error) {
+func (s *predState) parseOp(
+	name string,
+	sym func() (*Predicate, error),
+	mixAlt bool, ops ...string) func() (*Predicate, error) {
 	return func() (p *Predicate, e error) {
 		p, e = sym()
-		curr := p
-		o, end := "", false
-		for !end {
-			if o != "" {
+		if e == nil {
+			var o string
+			o, e = s.moreOps(ops)
+			if e == nil && o != "" && !mixAlt {
+				// restrict the set of operators to the detected
+				ops = []string{o}
+			}
+			curr := p
+			for e == nil && o != "" {
 				var b *Predicate
 				b, e = sym()
 				if e == nil {
@@ -100,57 +112,50 @@ func (s *predState) parseOp(sym func() (*Predicate, error),
 					}
 					curr.Operator, curr.A, curr.B = o, old, b
 					curr = curr.B
+					o, e = s.moreOps(ops)
 				}
-				o = ""
-			} else {
-				// first time it could fail
-				o, e = moreOps(s.scanStatePreserver, ops)
-				end = o == "" || e != nil
 			}
 		}
 		return
 	}
 }
 
-func moreOps(s *scanStatePreserver, ops []string) (
+func (s *predState) moreOps(ops []string) (
 	op string, e error,
 ) {
-	t, e := s.token()
-	if e == nil {
-		ib := func(i int) bool { return ops[i] == t.value }
-		ok, _ := alg.BLnSrch(ib, len(ops))
+	if s.token.value != CPar {
+		ib := func(i int) bool { return ops[i] == s.token.value }
+		ok, n := alg.BLnSrch(ib, len(ops))
 		if ok {
-			op = t.value
-		} else if !(t.value == CPar || t.value == string(eof)) {
-			e = fmt.Errorf("Not found operator %s in %v", t.value, ops)
+			op = ops[n]
 		}
 	}
 	return
 }
 
+func errUnkChar(value string) error {
+	return fmt.Errorf("Unknown char %s", value)
+}
+
 func (s *predState) factor() func() (*Predicate, error) {
 	return func() (p *Predicate, e error) {
-		t, e := s.token()
+		e = s.next()
 		var nt *Predicate
 		if e == nil {
-			if t.value == NotOp {
+			if s.token.value == NotOp {
 				nt = &Predicate{Operator: NotOp}
-				t, e = s.token()
+				e = s.next()
 			}
 			if e == nil {
-				if t.isIdent {
-					p = &Predicate{Operator: Term, String: t.value}
-				} else if t.value == OPar {
+				if s.token.isIdent {
+					p = &Predicate{Operator: Term, String: s.token.value}
+				} else if s.token.value == OPar {
 					p, e = s.predicate()
-					if e == nil {
-						t, e = s.token()
-						if e == nil && t.value != CPar {
-							e = fmt.Errorf("Expecting closing parenthesis")
-						}
+					if e == nil && s.token.value != CPar {
+						e = errClosingPar()
 					}
 				} else {
-					e = fmt.Errorf("Expecting identifier or opening " +
-						"parenthesis")
+					e = errIdentOrOpening()
 				}
 			}
 		}
@@ -158,61 +163,25 @@ func (s *predState) factor() func() (*Predicate, error) {
 			nt.B = p
 			p = nt
 		}
+		if e == nil {
+			e = s.next()
+		}
 		return
 	}
 }
 
-type scanStatePreserver struct {
-	tkf    func() (*token, error)
-	stored []*token
-	curr   int
-	saved  []int
+func errClosingPar() error {
+	return fmt.Errorf("Expecting closing parenthesis")
 }
 
-func (s *scanStatePreserver) token() (t *token, e error) {
-	if s.curr == len(s.stored) {
-		t, e = s.tkf()
-		if e == nil && t.value == "" {
-			t, e = s.tkf()
-		}
-		if e == nil {
-			s.stored = append(s.stored, t)
-		}
-	} else {
-		t = s.stored[s.curr]
-	}
-	if e == nil {
-		s.curr = s.curr + 1
-	}
-	return
-}
-
-func (s *scanStatePreserver) save() {
-	s.saved = append(s.saved, s.curr)
-}
-
-func (s *scanStatePreserver) back() {
-	l := len(s.saved) - 1
-	s.curr = s.saved[l]
-}
-
-func (s *scanStatePreserver) drop() {
-	s.saved = s.saved[:len(s.saved)-1]
+func errIdentOrOpening() error {
+	return fmt.Errorf("Expecting identifier or opening parenthesis")
 }
 
 const (
 	OPar = "("
 	CPar = ")"
 )
-
-func errorAlt(name string, d error) (e error) {
-	return fmt.Errorf("Error parsing %s (%v)", name, d)
-}
-
-func unexpEnd() (e error) {
-	e = fmt.Errorf("Unexpected end of input")
-	return
-}
 
 type token struct {
 	value    string
@@ -234,7 +203,7 @@ func tokens(source io.Reader, ss []scanner) (
 	n, end, read, search, scan := 0, false, true, false, false
 	tf = func() (t *token, e error) {
 		if end {
-			e = io.EOF
+			t = &token{value: string(eof)}
 		}
 		for !end {
 			if read {
@@ -261,12 +230,6 @@ func tokens(source io.Reader, ss []scanner) (
 		n, end = 0, e != nil || t.value == string(eof)
 		return
 	}
-	return
-}
-
-func equalErr(a, b error) (ok bool) {
-	ok = (a == nil) == (b == nil) &&
-		(a == nil || a.Error() == b.Error())
 	return
 }
 
