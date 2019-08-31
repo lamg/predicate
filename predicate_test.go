@@ -34,8 +34,8 @@ type toEvalResult struct {
 func TestReduce(t *testing.T) {
 	ps := []*toEvalResult{
 		{tov: True(), res: True()},
-		{tov: &Predicate{Operator: NotOp, A: False()}, res: True()},
-		{tov: &Predicate{Operator: NotOp, A: True()}, res: False()},
+		{tov: &Predicate{Operator: NotOp, B: False()}, res: True()},
+		{tov: &Predicate{Operator: NotOp, B: True()}, res: False()},
 		{
 			tov: &Predicate{Operator: AndOp, A: True(), B: False()},
 			res: False(),
@@ -55,7 +55,7 @@ func TestReduce(t *testing.T) {
 		{
 			tov: &Predicate{
 				Operator: NotOp,
-				A: &Predicate{
+				B: &Predicate{
 					Operator: AndOp, A: True(), B: True(),
 				},
 			},
@@ -64,15 +64,15 @@ func TestReduce(t *testing.T) {
 		{
 			tov: &Predicate{
 				Operator: NotOp,
-				A: &Predicate{
+				B: &Predicate{
 					Operator: AndOp,
 					A:        True(),
-					B:        &Predicate{Operator: NotOp, A: NewTerm("A")},
+					B:        &Predicate{Operator: NotOp, B: NewTerm("A")},
 				},
 			},
 			res: &Predicate{
 				Operator: NotOp,
-				A:        &Predicate{Operator: NotOp, A: NewTerm("A")},
+				B:        &Predicate{Operator: NotOp, B: NewTerm("A")},
 			},
 		},
 		{
@@ -211,7 +211,7 @@ func TestNot(t *testing.T) {
 	}
 	p := &Predicate{
 		Operator: NotOp,
-		A:        &Predicate{Operator: NotOp, A: NewTerm("A")},
+		B:        &Predicate{Operator: NotOp, B: NewTerm("A")},
 	}
 	nr := new(Predicate)
 	reduceNot(p, nr, itp)
@@ -233,7 +233,7 @@ func TestString(t *testing.T) {
 		{
 			p: &Predicate{
 				Operator: NotOp,
-				A:        NewTerm("Y"),
+				B:        NewTerm("Y"),
 			},
 			s: "¬Y",
 		},
@@ -260,7 +260,7 @@ func TestString(t *testing.T) {
 							A:        NewTerm("R"),
 							B: &Predicate{
 								Operator: NotOp,
-								A:        NewTerm("T"),
+								B:        NewTerm("T"),
 							},
 						},
 					},
@@ -271,7 +271,7 @@ func TestString(t *testing.T) {
 		{
 			p: &Predicate{
 				Operator: NotOp,
-				A: &Predicate{
+				B: &Predicate{
 					Operator: OrOp,
 					A:        NewTerm("A"),
 					B:        NewTerm("B"),

@@ -1,3 +1,23 @@
+// Copyright © 2019 Luis Ángel Méndez Gort
+
+// This file is part of Predicate.
+
+// Predicate is free software: you can redistribute it and/or
+// modify it under the terms of the GNU Lesser General
+// Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your
+// option) any later version.
+
+// Predicate is distributed in the hope that it will be
+// useful, but WITHOUT ANY WARRANTY; without even the
+// implied warranty of MERCHANTABILITY or FITNESS FOR A
+// PARTICULAR PURPOSE. See the GNU Lesser General Public
+// License for more details.
+
+// You should have received a copy of the GNU Lesser General
+// Public License along with Predicate.  If not, see
+// <https://www.gnu.org/licenses/>.
+
 package predicate
 
 import (
@@ -89,28 +109,10 @@ func TestParseOp(t *testing.T) {
 		strScan(NotOp)}
 	inf := func(i int) {
 		rd := strings.NewReader(ps[i])
-		st := &predState{&scanStatePreserver{tkf: tokens(rd, ss)}}
-		p, e := st.parseOp(st.factor(), AndOp)()
+		st := &predState{tkf: tokens(rd, ss)}
+		p, e := st.parseOp("factor", st.factor(), false, AndOp)()
 		require.NoError(t, e, "At %d", i)
 		require.Equal(t, ps[i], String(p), "At %d", i)
-	}
-	alg.Forall(inf, len(ps))
-}
-
-func TestParseAlternative(t *testing.T) {
-	ps := []string{"a ∧ (b ∨ c)"}
-	ss := []scanner{spaceScan, identScan, strScan(AndOp),
-		strScan(NotOp), strScan(OrOp)}
-
-	inf := func(i int) {
-		rd := strings.NewReader(ps[i])
-		s := &predState{&scanStatePreserver{tkf: tokens(rd, ss)}}
-		factor := s.factor()
-		conjunction := s.parseOp(factor, AndOp)
-		disjunction := s.parseOp(factor, OrOp)
-		p, e := s.alternative("junction", disjunction, conjunction)()
-		require.NoError(t, e)
-		require.Equal(t, ps[i], String(p))
 	}
 	alg.Forall(inf, len(ps))
 }
@@ -121,19 +123,19 @@ func TestParse(t *testing.T) {
 		e    error
 	}{
 		{"true ∧ false", nil},
-		{"true ∧", errorAlt("term", errorAlt("junction",
-			notRec("\x03")))},
+		{"true ∧", errIdentOrOpening()},
 		{"¬A", nil},
 		{"¬A ∧ (B ∨ C)", nil},
 		{"A ∨ ¬(B ∧ C)", nil},
-		{"A ≡ B ≡ ¬C ⇒ D", nil},
+		{"A ≡ B ≢ ¬C ⇒ D", nil},
 		{"A ≡ B ≡ ¬C ⇐ D", nil},
 		{"A ≡ B ≡ ¬(C ⇐ D)", nil},
 		{"A ∨ B ∨ C", nil},
-		{"A ∨ B ∧ C", nil},
-		{"A ⇒ B ⇐ C", nil},
+		{"A ∨ B ∧ C", errUnkChar("∧")},
+		{"A ⇒ B ⇐ C", errUnkChar("⇐")},
 		{"A ∨ (B ∧ C)", nil},
 		{"A ⇒ (B ⇐ C)", nil},
+		{"a ≡ b ≢ c ≡ ¬x ∧ (¬z ≡ y) ≢ true", nil},
 	}
 	inf := func(i int) {
 		np, e := Parse(strings.NewReader(ps[i].pred))
@@ -142,7 +144,7 @@ func TestParse(t *testing.T) {
 		if e == nil {
 			s := String(np)
 			t.Logf("'%s'", s)
-			require.Equal(t, ps[i].pred, s)
+			require.Equal(t, ps[i].pred, s, "At %d", i)
 		} else {
 			t.Logf("'%s' → %s", ps[i].pred, e.Error())
 			require.Equal(t, ps[i].e.Error(), e.Error(), "At '%s'",

@@ -96,7 +96,7 @@ func reduceTerm(p, r *Predicate, itp NameBool) (ok bool) {
 }
 
 func reduceNot(p, r *Predicate, itp NameBool) (ok bool) {
-	nr := Reduce(p.A, itp)
+	nr := Reduce(p.B, itp)
 	v, ok := false, nr.Operator == Term
 	if ok {
 		v, ok = itp(nr.String)
@@ -105,7 +105,7 @@ func reduceNot(p, r *Predicate, itp NameBool) (ok bool) {
 		r.String = fmt.Sprint(!v)
 		r.Operator = Term
 	} else {
-		r.A = nr
+		r.B = nr
 		r.Operator = NotOp
 	}
 	return
@@ -195,7 +195,7 @@ func negate(p *Predicate) (r *Predicate) {
 	} else if p.String == FalseStr {
 		r = True()
 	} else {
-		r = &Predicate{Operator: NotOp, A: p}
+		r = &Predicate{Operator: NotOp, B: p}
 	}
 	return
 }
@@ -272,6 +272,9 @@ func String(p *Predicate) (r string) {
 	if p.Operator == Term {
 		r = p.String
 	} else if p.Operator == NotOp {
+		if p.B == nil {
+			panic("Malformed ¬ predicate:" + p.String)
+		}
 		var sfm string
 		if p.B.Operator == Term {
 			sfm = "%s"
@@ -314,8 +317,8 @@ func format(oa, ob string) (r string) {
 
 func (p *Predicate) Valid() (ok bool) {
 	if p.Operator == NotOp {
-		ok = p.A != nil && p.B == nil
-		ok = ok && p.A.Valid()
+		ok = p.A == nil && p.B != nil
+		ok = ok && p.B.Valid()
 	} else if p.Operator == Term {
 		ok = p.String != ""
 	} else {
