@@ -41,13 +41,9 @@ The following table shows some examples of how `reduce` works. Using standard in
 The syntax is based on [EWD1300][0] which I have formalized in the following grammar:
 
 ```ebnf
-predicate = term ('≡'|'≢') term {('≡'|'≢') term}| term.
-term = implication | consequence | junction.
-implication = junction '⇒' junction {'⇒' junction}.
-consequence = junction '⇐' junction {'⇐' junction}.
-junction = disjunction | conjunction | factor.
-disjunction = factor '∨' factor {'∨' factor}.
-conjunction = factor '∧' factor {'∧' factor}.
+predicate = term {('≡'|'≢') term}.
+term = junction ({'⇒' junction} | {'⇐' junction}).
+junction = factor ({'∨' factor} | {'∧' factor}).
 factor =	[unaryOp] (identifier | '(' predicate ')').
 unaryOp = '¬'.
 ```
