@@ -122,6 +122,7 @@ func TestParse(t *testing.T) {
 		pred string
 		e    error
 	}{
+		{"", errIdentOrOpening()},
 		{"true ∧ false", nil},
 		{"true ∧", errIdentOrOpening()},
 		{"¬A", nil},
