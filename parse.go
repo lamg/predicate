@@ -110,7 +110,7 @@ func (s *predState) parseOp(
 						B:        curr.B,
 						String:   curr.String,
 					}
-					curr.Operator, curr.A, curr.B = o, old, b
+					curr.Operator, curr.A, curr.B, curr.String = o, old, b, ""
 					curr = curr.B
 					o, e = s.moreOps(ops)
 				}
