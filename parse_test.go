@@ -146,6 +146,7 @@ func TestParse(t *testing.T) {
 			s := String(np)
 			t.Logf("'%s'", s)
 			require.Equal(t, ps[i].pred, s, "At %d", i)
+			require.True(t, np.Valid())
 		} else {
 			t.Logf("'%s' → %s", ps[i].pred, e.Error())
 			require.Equal(t, ps[i].e.Error(), e.Error(), "At '%s'",

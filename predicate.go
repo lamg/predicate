@@ -328,6 +328,7 @@ func (p *Predicate) Valid() (ok bool) {
 		ok, _ = alg.BLnSrch(ib, len(ops))
 		ok = ok && p.A != nil && p.B != nil
 		ok = ok && p.A.Valid() && p.B.Valid()
+		ok = ok && p.String == ""
 	}
 	return
 }
