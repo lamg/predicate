@@ -21,6 +21,7 @@
 package predicate
 
 import (
+	"errors"
 	alg "github.com/lamg/algorithms"
 	"github.com/stretchr/testify/require"
 	"strings"
@@ -118,13 +119,19 @@ func TestParseOp(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
+	errEof := &NotRecognizedErr{
+		String:    string(eof),
+		Expecting: []string{Identifier, OPar},
+	}
+	errAnd := &NotRecognizedErr{String: "∧", Expecting: []string{"∨"}}
+	errFl := &NotRecognizedErr{String: "⇐", Expecting: []string{"⇒"}}
 	ps := []struct {
 		pred string
 		e    error
 	}{
-		{"", errIdentOrOpening()},
+		{"", errEof},
 		{"true ∧ false", nil},
-		{"true ∧", errIdentOrOpening()},
+		{"true ∧", errEof},
 		{"¬A", nil},
 		{"¬A ∧ (B ∨ C)", nil},
 		{"A ∨ ¬(B ∧ C)", nil},
@@ -132,8 +139,8 @@ func TestParse(t *testing.T) {
 		{"A ≡ B ≡ ¬C ⇐ D", nil},
 		{"A ≡ B ≡ ¬(C ⇐ D)", nil},
 		{"A ∨ B ∨ C", nil},
-		{"A ∨ B ∧ C", errUnkChar("∧")},
-		{"A ⇒ B ⇐ C", errUnkChar("⇐")},
+		{"A ∨ B ∧ C", errAnd},
+		{"A ⇒ B ⇐ C", errFl},
 		{"A ∨ (B ∧ C)", nil},
 		{"A ⇒ (B ⇐ C)", nil},
 		{"a ≡ b ≢ c ≡ ¬x ∧ (¬z ≡ y) ≢ true", nil},
@@ -149,8 +156,10 @@ func TestParse(t *testing.T) {
 			require.True(t, np.Valid())
 		} else {
 			t.Logf("'%s' → %s", ps[i].pred, e.Error())
-			require.Equal(t, ps[i].e.Error(), e.Error(), "At '%s'",
-				ps[i].pred)
+			var nr *NotRecognizedErr
+			require.True(t, errors.As(e, &nr), "At %d '%s' ≠ '%s'", i,
+				e.Error(), nr)
+			require.Equal(t, ps[i].e, nr)
 		}
 	}
 	alg.Forall(inf, len(ps))

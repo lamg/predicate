@@ -60,7 +60,10 @@ func Parse(rd io.Reader) (p *Predicate, e error) {
 
 	p, e = st.predicate()
 	if e == nil && st.token.value != string(eof) {
-		e = errUnkChar(st.token.value)
+		e = &NotRecognizedErr{
+			String:    st.token.value,
+			Expecting: []string{p.Operator},
+		}
 	}
 	return
 }
@@ -133,10 +136,6 @@ func (s *predState) moreOps(ops []string) (
 	return
 }
 
-func errUnkChar(value string) error {
-	return fmt.Errorf("Unknown char %s", value)
-}
-
 func (s *predState) factor() func() (*Predicate, error) {
 	return func() (p *Predicate, e error) {
 		e = s.next()
@@ -152,10 +151,16 @@ func (s *predState) factor() func() (*Predicate, error) {
 				} else if s.token.value == OPar {
 					p, e = s.predicate()
 					if e == nil && s.token.value != CPar {
-						e = errClosingPar()
+						e = &NotRecognizedErr{
+							String:    s.token.value,
+							Expecting: []string{CPar},
+						}
 					}
 				} else {
-					e = errIdentOrOpening()
+					e = &NotRecognizedErr{
+						String:    s.token.value,
+						Expecting: []string{Identifier, OPar},
+					}
 				}
 			}
 		}
@@ -170,17 +175,11 @@ func (s *predState) factor() func() (*Predicate, error) {
 	}
 }
 
-func errClosingPar() error {
-	return fmt.Errorf("Expecting closing parenthesis")
-}
-
-func errIdentOrOpening() error {
-	return fmt.Errorf("Expecting identifier or opening parenthesis")
-}
-
 const (
-	OPar = "("
-	CPar = ")"
+	OPar           = "("
+	CPar           = ")"
+	Identifier     = "identifier"
+	SupportedToken = "supported token"
 )
 
 type token struct {
@@ -217,7 +216,12 @@ func tokens(source io.Reader, ss []scanner) (
 				read, search = false, !scan
 			} else if search {
 				if n == len(ss) {
-					e, end = notRec(string(rn)), true
+					e, end =
+						&NotRecognizedErr{
+							String:    string(rn),
+							Expecting: []string{SupportedToken},
+						},
+						true
 				} else {
 					sc, n, search = ss[n](), n+1, false
 				}
@@ -233,8 +237,15 @@ func tokens(source io.Reader, ss []scanner) (
 	return
 }
 
-func notRec(s string) (e error) {
-	return fmt.Errorf("Not recognized '%s'", s)
+type NotRecognizedErr struct {
+	String    string
+	Expecting []string
+}
+
+func (n *NotRecognizedErr) Error() (s string) {
+	s = fmt.Sprintf("Not recognized '%s', expecting one of %v",
+		n.String, n.Expecting)
+	return
 }
 
 type scanner func() func(rune) (*token, bool, bool)
